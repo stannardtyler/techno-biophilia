@@ -1,0 +1,307 @@
+html,
+body {
+  height: 100%;
+  margin: 0;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+body {
+  overflow: hidden;
+  background: #000;
+  color: #f6f7f2;
+}
+
+#c {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: crosshair;
+}
+
+.settings {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  width: min(280px, calc(100vw - 28px));
+  max-height: calc(100vh - 28px);
+  box-sizing: border-box;
+  padding: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 8px;
+  background: rgba(18, 20, 26, 0.86);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(16px);
+  overflow-y: auto;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.settings.is-hidden {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(calc(100% + 20px));
+}
+
+.settings__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 720;
+  line-height: 1.1;
+}
+
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 76px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.toggle input {
+  appearance: none;
+  width: 42px;
+  height: 24px;
+  margin: 0;
+  border: 1px solid rgba(255, 255, 255, 0.26);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.toggle input::before {
+  content: "";
+  display: block;
+  width: 18px;
+  height: 18px;
+  margin: 2px;
+  border-radius: 50%;
+  background: #f8faf3;
+  transition: transform 160ms ease;
+}
+
+.toggle input:checked {
+  border-color: rgba(51, 255, 95, 0.72);
+  background: #1f9f47;
+}
+
+.toggle input:checked::before {
+  transform: translateX(18px);
+}
+
+.settings-group {
+  border-top: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.settings-group[open] {
+  padding-bottom: 14px;
+}
+
+.settings-group summary {
+  padding: 11px 0;
+  cursor: pointer;
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.settings-group summary::marker {
+  color: #d8ff8c;
+}
+
+.settings-group summary:hover,
+.settings-group summary:focus-visible {
+  color: #d8ff8c;
+}
+
+.settings-group summary:focus-visible {
+  outline: 1px solid #d8ff8c;
+  outline-offset: 2px;
+}
+
+.sensor-mode {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+
+.sensor-mode .toggle {
+  min-width: 102px;
+}
+
+.sensor-mode .toggle input {
+  flex-shrink: 0;
+}
+
+.sensor-status output {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+button:disabled,
+.toggle input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.control {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+  font-size: 0.86rem;
+  font-weight: 650;
+}
+
+.control span {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+output {
+  color: #d8ff8c;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.editable-value {
+  margin: -2px -6px -2px 0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  cursor: text;
+}
+
+.editable-value:hover,
+.editable-value:focus-visible {
+  background: rgba(216, 255, 140, 0.14);
+  outline: none;
+}
+
+.target {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 14px 0 0;
+  color: rgba(246, 247, 242, 0.78);
+  font-size: 0.82rem;
+  font-weight: 680;
+}
+
+.target output {
+  max-width: 150px;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+}
+
+.target-control {
+  padding-top: 2px;
+}
+
+input[type="range"] {
+  accent-color: #a6f358;
+  width: 100%;
+}
+
+button {
+  width: 100%;
+  min-height: 34px;
+  margin-top: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 6px;
+  color: #f9fbf2;
+  background: rgba(255, 255, 255, 0.12);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 720;
+}
+
+button:hover,
+button:focus-visible {
+  background: rgba(216, 255, 140, 0.18);
+  outline: none;
+}
+
+.value-editor[hidden] {
+  display: none;
+}
+
+.value-editor {
+  position: sticky;
+  bottom: 0;
+  margin-top: 12px;
+  padding: 10px;
+  border: 1px solid rgba(216, 255, 140, 0.22);
+  border-radius: 6px;
+  background: rgba(9, 11, 15, 0.94);
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.22);
+}
+
+.value-editor label {
+  display: block;
+  margin-bottom: 7px;
+  color: rgba(246, 247, 242, 0.78);
+  font-size: 0.78rem;
+  font-weight: 720;
+}
+
+.value-editor div {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 6px;
+  align-items: center;
+}
+
+.value-editor input {
+  min-width: 0;
+  height: 32px;
+  box-sizing: border-box;
+  padding: 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 4px;
+  color: #f9fbf2;
+  background: rgba(255, 255, 255, 0.08);
+  font: inherit;
+  font-size: 0.82rem;
+}
+
+.value-editor input:focus-visible {
+  border-color: rgba(216, 255, 140, 0.64);
+  outline: none;
+}
+
+.value-editor button {
+  width: auto;
+  min-height: 32px;
+  margin-top: 0;
+  padding: 0 10px;
+  font-size: 0.78rem;
+}
+
+@media (max-width: 680px) {
+  #info {
+    padding: 10px 14px;
+  }
+
+  .settings {
+    top: auto;
+    right: 14px;
+    bottom: 14px;
+    left: 14px;
+    width: auto;
+    max-height: 56vh;
+  }
+}

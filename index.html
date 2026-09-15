@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>three.js webgl - postprocessing dof - basic v2</title>
+    <link rel="stylesheet" href="./style.css">
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./library/three.module.js",
+          "three/addons/": "./library/examples/jsm/"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <canvas id="c"></canvas>
+
+    <aside class="settings" aria-label="Depth of field settings">
+      <div class="settings__header">
+        <h1>Settings</h1>
+        <label class="toggle">
+          <input id="dofEnabled" type="checkbox" checked>
+          <span id="dofState">On</span>
+        </label>
+      </div>
+
+      <details id="sensorSettings" class="settings-group" open>
+        <summary>Ultrasonic Sensor</summary>
+        <div class="sensor-mode">
+          <span>sensor zoom</span>
+          <label class="toggle">
+            <input id="sensorZoomEnabled" type="checkbox" role="switch" aria-label="Use ultrasonic sensor for zoom" disabled>
+            <span id="sensorZoomState">Mouse</span>
+          </label>
+        </div>
+        <p class="target">
+          <span>distance</span>
+          <output id="sensorDistanceValue">-- cm</output>
+        </p>
+        <p class="target sensor-status">
+          <span>serial</span>
+          <output id="sensorStatus" aria-live="polite">Disconnected</output>
+        </p>
+        <button id="connectSensor" type="button">Connect Sensor</button>
+      </details>
+
+      <details class="settings-group">
+        <summary>Depth of Field</summary>
+        <label class="control" for="minDistance">
+          <span>
+            min distance
+            <output id="minDistanceValue" class="editable-value" for="minDistance" data-control="minDistance" tabindex="0" aria-label="Set min distance manually">1.00</output>
+          </span>
+          <input id="minDistance" type="range" min="0" max="3" step="0.01" value="1">
+        </label>
+
+        <label class="control" for="maxDistance">
+          <span>
+            max distance
+            <output id="maxDistanceValue" class="editable-value" for="maxDistance" data-control="maxDistance" tabindex="0" aria-label="Set max distance manually">3.00</output>
+          </span>
+          <input id="maxDistance" type="range" min="0.01" max="5" step="0.01" value="3">
+        </label>
+
+        <label class="control" for="blurSize">
+          <span>
+            blur size
+            <output id="blurSizeValue" class="editable-value" for="blurSize" data-control="blurSize" tabindex="0" aria-label="Set blur size manually">2</output>
+          </span>
+          <input id="blurSize" type="range" min="1" max="3" step="1" value="2">
+        </label>
+
+        <label class="control" for="blurSpread">
+          <span>
+            blur spread
+            <output id="blurSpreadValue" class="editable-value" for="blurSpread" data-control="blurSpread" tabindex="0" aria-label="Set blur spread manually">4</output>
+          </span>
+          <input id="blurSpread" type="range" min="1" max="7" step="1" value="4">
+        </label>
+      </details>
+
+      <details class="settings-group">
+        <summary>Focus Target</summary>
+        <p class="target">
+          <span>target</span>
+          <output id="targetValue">loading model</output>
+        </p>
+
+        <label class="control target-control" for="targetX">
+          <span>
+            target x
+            <output id="targetXValue" class="editable-value" for="targetX" data-control="targetX" tabindex="0" aria-label="Set target x manually">0.00</output>
+          </span>
+          <input id="targetX" type="range" min="-4" max="4" step="0.05" value="0">
+        </label>
+
+        <label class="control target-control" for="targetY">
+          <span>
+            target y
+            <output id="targetYValue" class="editable-value" for="targetY" data-control="targetY" tabindex="0" aria-label="Set target y manually">0.00</output>
+          </span>
+          <input id="targetY" type="range" min="-4" max="4" step="0.05" value="0">
+        </label>
+
+        <label class="control target-control" for="targetZ">
+          <span>
+            target z
+            <output id="targetZValue" class="editable-value" for="targetZ" data-control="targetZ" tabindex="0" aria-label="Set target z manually">0.00</output>
+          </span>
+          <input id="targetZ" type="range" min="-4" max="4" step="0.05" value="0">
+        </label>
+
+        <p class="target">
+          <span>focus</span>
+          <output id="focusValue">0.00</output>
+        </p>
+      </details>
+
+      <details class="settings-group">
+        <summary>Model Position</summary>
+        <label class="control" for="modelPositionX">
+          <span>
+            position x
+            <output id="modelPositionXValue" class="editable-value" for="modelPositionX" data-control="modelPositionX" tabindex="0" aria-label="Set model x position manually">0.00</output>
+          </span>
+          <input id="modelPositionX" type="range" min="-10" max="10" step="0.05" value="0">
+        </label>
+        <label class="control" for="modelPositionY">
+          <span>
+            position y
+            <output id="modelPositionYValue" class="editable-value" for="modelPositionY" data-control="modelPositionY" tabindex="0" aria-label="Set model y position manually">0.00</output>
+          </span>
+          <input id="modelPositionY" type="range" min="-10" max="10" step="0.05" value="0">
+        </label>
+        <label class="control" for="modelPositionZ">
+          <span>
+            position z
+            <output id="modelPositionZValue" class="editable-value" for="modelPositionZ" data-control="modelPositionZ" tabindex="0" aria-label="Set model z position manually">0.00</output>
+          </span>
+          <input id="modelPositionZ" type="range" min="-10" max="10" step="0.05" value="0">
+        </label>
+      </details>
+
+      <details class="settings-group">
+        <summary>Model Rotation</summary>
+        <label class="control" for="modelRotationX">
+          <span>
+            rotate x
+            <output id="modelRotationXValue" class="editable-value" for="modelRotationX" data-control="modelRotationX" tabindex="0" aria-label="Set model x rotation manually">0.00</output>
+          </span>
+          <input id="modelRotationX" type="range" min="-180" max="180" step="0.1" value="0">
+        </label>
+
+        <label class="control" for="modelRotationY">
+          <span>
+            rotate y
+            <output id="modelRotationYValue" class="editable-value" for="modelRotationY" data-control="modelRotationY" tabindex="0" aria-label="Set model y rotation manually">0.00</output>
+          </span>
+          <input id="modelRotationY" type="range" min="-180" max="180" step="0.1" value="0">
+        </label>
+
+        <label class="control" for="modelRotationZ">
+          <span>
+            rotate z
+            <output id="modelRotationZValue" class="editable-value" for="modelRotationZ" data-control="modelRotationZ" tabindex="0" aria-label="Set model z rotation manually">0.00</output>
+          </span>
+          <input id="modelRotationZ" type="range" min="-180" max="180" step="0.1" value="0">
+        </label>
+      </details>
+
+      <button id="resetDof" type="button">Reset</button>
+
+      <form id="valueEditor" class="value-editor" hidden>
+        <label id="valueEditorLabel" for="manualValue">value</label>
+        <div>
+          <input id="manualValue" type="number" step="any">
+          <button type="submit">Set</button>
+          <button id="cancelValueEdit" type="button">Cancel</button>
+        </div>
+      </form>
+    </aside>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
