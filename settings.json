@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "model": "1",
+  "dofEnabled": true,
+  "controls": {
+    "minDistance": 0,
+    "maxDistance": 0.01,
+    "blurSize": 2,
+    "blurSpread": 4,
+    "targetX": 0,
+    "targetY": 0,
+    "targetZ": 0,
+    "modelPositionX": 0,
+    "modelPositionY": 0,
+    "modelPositionZ": 0,
+    "sensorSensitivity": 2,
+    "zoomInSpeed": 0.4,
+    "zoomOutSpeed": 0.25,
+    "zoomOutDelay": 7,
+    "cameraMinDistance": 3,
+    "cameraMaxDistance": 20,
+    "modelRotationX": 0,
+    "modelRotationY": 0,
+    "modelRotationZ": 0
+  },
+  "camera": {
+    "position": {
+      "x": 8.421519210665188,
+      "y": 6.737215368532157,
+      "z": 16.843038421330377
+    },
+    "target": {
+      "x": 0,
+      "y": 0,
+      "z": 0
+    }
+  }
+}

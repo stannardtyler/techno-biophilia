@@ -17,7 +17,7 @@
   <body>
     <canvas id="c"></canvas>
 
-    <aside class="settings" aria-label="Depth of field settings">
+    <aside class="settings" aria-label="Depth of field settings" inert>
       <div class="settings__header">
         <h1>Settings</h1>
         <label class="toggle">
@@ -44,6 +44,61 @@
           <output id="sensorStatus" aria-live="polite">Disconnected</output>
         </p>
         <button id="connectSensor" type="button">Connect Sensor</button>
+      </details>
+
+      <details class="settings-group" open>
+        <summary>Camera Animation</summary>
+        <label class="control" for="zoomInSpeed">
+          <span>
+            zoom in speed
+            <output id="zoomInSpeedValue" class="editable-value" for="zoomInSpeed" data-control="zoomInSpeed" tabindex="0" aria-label="Set zoom in speed manually">1.00x</output>
+          </span>
+          <input id="zoomInSpeed" type="range" min="0.1" max="3" step="0.05" value="1">
+        </label>
+        <label class="control" for="zoomOutSpeed">
+          <span>
+            zoom out speed
+            <output id="zoomOutSpeedValue" class="editable-value" for="zoomOutSpeed" data-control="zoomOutSpeed" tabindex="0" aria-label="Set zoom out speed manually">1.00x</output>
+          </span>
+          <input id="zoomOutSpeed" type="range" min="0.1" max="3" step="0.05" value="1">
+        </label>
+        <label class="control" for="zoomOutDelay">
+          <span>
+            return delay
+            <output id="zoomOutDelayValue" class="editable-value" for="zoomOutDelay" data-control="zoomOutDelay" tabindex="0" aria-label="Set return delay in seconds manually">3.00 s</output>
+          </span>
+          <input id="zoomOutDelay" type="range" min="0" max="15" step="0.1" value="3">
+        </label>
+      </details>
+
+      <details class="settings-group" open>
+        <summary>Camera Position</summary>
+        <p class="target">
+          <span>x</span>
+          <output id="cameraXValue" aria-label="Camera X position" aria-live="off">--</output>
+        </p>
+        <p class="target">
+          <span>y</span>
+          <output id="cameraYValue" aria-label="Camera Y position" aria-live="off">--</output>
+        </p>
+        <p class="target">
+          <span>z</span>
+          <output id="cameraZValue" aria-label="Camera Z position" aria-live="off">--</output>
+        </p>
+        <label class="control" for="cameraMinDistance">
+          <span>
+            min zoom distance
+            <output id="cameraMinDistanceValue" class="editable-value" for="cameraMinDistance" data-control="cameraMinDistance" tabindex="0" aria-label="Set minimum camera zoom distance manually">4.00</output>
+          </span>
+          <input id="cameraMinDistance" type="range" min="0.2" max="50" step="0.1" value="4">
+        </label>
+        <label class="control" for="cameraMaxDistance">
+          <span>
+            max zoom distance
+            <output id="cameraMaxDistanceValue" class="editable-value" for="cameraMaxDistance" data-control="cameraMaxDistance" tabindex="0" aria-label="Set maximum camera zoom distance manually">14.00</output>
+          </span>
+          <input id="cameraMaxDistance" type="range" min="0.2" max="50" step="0.1" value="14">
+        </label>
       </details>
 
       <details class="settings-group">
@@ -170,6 +225,11 @@
         </label>
       </details>
 
+      <button id="exportSettings" class="export-settings" type="button" title="Export settings.json">
+        <img src="./library/download.svg" width="18" height="18" alt="">
+        Export Settings
+      </button>
+      <p id="settingsStatus" class="settings-status" role="status">Loading settings...</p>
       <button id="resetDof" type="button">Reset</button>
 
       <form id="valueEditor" class="value-editor" hidden>

@@ -7,9 +7,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import TWEEN from 'three/addons/libs/tween.module.js';
 
-// DOF RENDERING: Custom postprocessing pass that blends sharp and blurred pixels by depth.
 class SimpleDepthOfFieldPass extends Pass {
-  // Build the shader and its adjustable focus/blur values.
   constructor(camera, params) {
     super();
 
@@ -32,7 +30,6 @@ class SimpleDepthOfFieldPass extends Pass {
       vertexShader: `
         varying vec2 vUv;
 
-        // Draw the fullscreen image and pass its texture coordinates to the fragment shader.
         void main() {
           vUv = uv;
           gl_Position = vec4(position.xy, 0.0, 1.0);
@@ -54,7 +51,6 @@ class SimpleDepthOfFieldPass extends Pass {
         uniform float cameraNear;
         uniform float cameraFar;
 
-        // Convert the depth texture into distance along the camera's viewing direction.
         float getViewDistance(vec2 uv) {
           float depth = texture2D(tDepth, uv).x;
           float viewZ = perspectiveDepthToViewZ(depth, cameraNear, cameraFar);
@@ -62,7 +58,6 @@ class SimpleDepthOfFieldPass extends Pass {
           return -viewZ;
         }
 
-        // Combine nine nearby samples to create the blurred color.
         vec4 blurColor(vec2 uv, vec2 radius) {
           vec4 color = texture2D(tDiffuse, uv) * 0.2;
 
@@ -78,7 +73,6 @@ class SimpleDepthOfFieldPass extends Pass {
           return color;
         }
 
-        // Increase blur as the pixel moves outside the selected focus distance range.
         void main() {
           vec4 sharp = texture2D(tDiffuse, vUv);
           float sceneDistance = getViewDistance(vUv);
@@ -96,7 +90,6 @@ class SimpleDepthOfFieldPass extends Pass {
     this.fsQuad = new FullScreenQuad(this.material);
   }
 
-  // Apply DOF to the composer's current color and depth textures.
   render(renderer, writeBuffer, readBuffer) {
     this.uniforms.tDiffuse.value = readBuffer.texture;
     this.uniforms.tDepth.value = readBuffer.depthTexture;
@@ -108,19 +101,16 @@ class SimpleDepthOfFieldPass extends Pass {
     this.fsQuad.render(renderer);
   }
 
-  // Keep the blur radius consistent when the render size changes.
   setSize(width, height) {
     this.uniforms.resolution.value.set(width, height);
   }
 
-  // Release this pass's GPU resources when it is no longer needed.
   dispose() {
     this.material.dispose();
     this.fsQuad.dispose();
   }
 }
 
-// SCENE SETUP: Camera, mouse controls, lighting, and the shared model container.
 const canvas = document.querySelector('#c');
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
@@ -133,7 +123,6 @@ const camera = new THREE.PerspectiveCamera(
 );
 camera.position.set(5, 4, 10);
 camera.lookAt(0, 0, 0);
-const defaultCameraFar = camera.far;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, canvas });
 const pixelRatio = Math.min(window.devicePixelRatio, 2);
@@ -142,17 +131,14 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.toneMapping = THREE.NeutralToneMapping;
 
 const cameraControls = new OrbitControls(camera, canvas);
-cameraControls.enabled = false; // Wait for the published preset before accepting camera input.
 cameraControls.target.set(0, 0, 0);
 cameraControls.enableDamping = true;
 cameraControls.update();
 
 const modelRoot = new THREE.Group();
-// MODEL SHORTCUTS: Add a key/file entry here to make another GLB selectable.
 const modelAssets = {
   '1': { url: './treeScan.glb', label: 'tree scan' },
-  '2': { url: './treeHole.glb', label: 'tree hole' },
-  '3': { url: './anotherTreeScan.glb', label: 'another tree scan' }
+  '2': { url: './treeHole.glb', label: 'tree hole' }
 };
 const modelCache = new Map();
 let activeModelKey = null;
@@ -160,7 +146,6 @@ let requestedModelKey = '1';
 let modelRequestId = 0;
 const focusTargets = [];
 const initialFocusPoint = new THREE.Vector3();
-// MODEL DEFAULTS: Largest model dimension and starting X/Y/Z position, in scene units.
 const modelTargetSize = 4.5;
 const modelCenterPosition = new THREE.Vector3(0, 0, 0);
 modelRoot.position.copy(modelCenterPosition);
@@ -186,7 +171,6 @@ const dofSettingDefaults = {
   blurSize: 2,
   blurSpread: 4
 };
-// ZOOM-BASED BLUR: Adjust how much blur changes between near and far focus distances.
 const cameraDistanceBlurSettings = {
   enabled: true,
   nearFocusDistance: 3,
@@ -194,9 +178,8 @@ const cameraDistanceBlurSettings = {
   nearBlurMultiplier: 0.35,
   farBlurMultiplier: 1.8
 };
-// SENSOR DEFAULTS: Sensor distances are centimeters; camera distances are Three.js scene units.
+// Sensor distances are centimeters; camera distances are Three.js scene units.
 // Values beyond nearCm/farCm hold the corresponding camera distance.
-// Smoothing values use seconds; zoomOutHoldMs and staleAfterMs use milliseconds.
 const sensorZoomDefaults = {
   baudRate: 115200,
   nearCm: 20,
@@ -204,8 +187,6 @@ const sensorZoomDefaults = {
   nearCameraDistance: 4,
   farCameraDistance: 14,
   sensitivity: 1, // Higher values increase how strongly approaching affects zoom.
-  zoomInSpeed: 1,
-  zoomOutSpeed: 1,
   targetSmoothingSeconds: 0.6,
   smoothingSeconds: 1.2,
   zoomOutHoldMs: 3000,
@@ -287,19 +268,6 @@ const controls = {
   connectSensor: document.querySelector('#connectSensor'),
   sensorSensitivity: document.querySelector('#sensorSensitivity'),
   sensorSensitivityValue: document.querySelector('#sensorSensitivityValue'),
-  zoomInSpeed: document.querySelector('#zoomInSpeed'),
-  zoomInSpeedValue: document.querySelector('#zoomInSpeedValue'),
-  zoomOutSpeed: document.querySelector('#zoomOutSpeed'),
-  zoomOutSpeedValue: document.querySelector('#zoomOutSpeedValue'),
-  zoomOutDelay: document.querySelector('#zoomOutDelay'),
-  zoomOutDelayValue: document.querySelector('#zoomOutDelayValue'),
-  cameraXValue: document.querySelector('#cameraXValue'),
-  cameraYValue: document.querySelector('#cameraYValue'),
-  cameraZValue: document.querySelector('#cameraZValue'),
-  cameraMinDistance: document.querySelector('#cameraMinDistance'),
-  cameraMinDistanceValue: document.querySelector('#cameraMinDistanceValue'),
-  cameraMaxDistance: document.querySelector('#cameraMaxDistance'),
-  cameraMaxDistanceValue: document.querySelector('#cameraMaxDistanceValue'),
   enabled: document.querySelector('#dofEnabled'),
   state: document.querySelector('#dofState'),
   minDistance: document.querySelector('#minDistance'),
@@ -334,8 +302,6 @@ const controls = {
   valueEditorLabel: document.querySelector('#valueEditorLabel'),
   manualValue: document.querySelector('#manualValue'),
   cancelValueEdit: document.querySelector('#cancelValueEdit'),
-  exportSettings: document.querySelector('#exportSettings'),
-  settingsStatus: document.querySelector('#settingsStatus'),
   reset: document.querySelector('#resetDof')
 };
 
@@ -351,11 +317,6 @@ const editableControls = [
   'modelPositionY',
   'modelPositionZ',
   'sensorSensitivity',
-  'zoomInSpeed',
-  'zoomOutSpeed',
-  'zoomOutDelay',
-  'cameraMinDistance',
-  'cameraMaxDistance',
   'modelRotationX',
   'modelRotationY',
   'modelRotationZ'
@@ -375,14 +336,8 @@ const modelPositionControlAxes = {
   modelPositionY: 'y',
   modelPositionZ: 'z'
 };
-const sensorSpeedControls = ['zoomInSpeed', 'zoomOutSpeed'];
-const cameraZoomControls = {
-  cameraMinDistance: 'nearCameraDistance',
-  cameraMaxDistance: 'farCameraDistance'
-};
 let activeManualControl = null;
 
-// Apply DOF settings to the shader and refresh the displayed blur values.
 function updateDof() {
   dofPass.enabled = controls.enabled.checked;
   dofPass.uniforms.minDistance.value = dofSettings.minDistance;
@@ -396,7 +351,6 @@ function updateDof() {
   controls.blurSpreadValue.value = formatCompactValue(dofSettings.blurSpread);
 }
 
-// UI EVENTS: Route sliders and toggles to their setting handlers.
 controls.enabled.addEventListener('change', updateDof);
 controls.minDistance.addEventListener('input', () => updateDofSettingFromSlider('minDistance'));
 controls.maxDistance.addEventListener('input', () => updateDofSettingFromSlider('maxDistance'));
@@ -416,28 +370,13 @@ Object.keys(modelPositionControlAxes).forEach((controlName) => {
 controls.sensorSensitivity.addEventListener('input', () => {
   setActualControlValue('sensorSensitivity', Number(controls.sensorSensitivity.value));
 });
-sensorSpeedControls.forEach((controlName) => {
-  controls[controlName].addEventListener('input', () => {
-    setActualControlValue(controlName, Number(controls[controlName].value));
-  });
-});
-controls.zoomOutDelay.addEventListener('input', () => {
-  setActualControlValue('zoomOutDelay', Number(controls.zoomOutDelay.value));
-});
-Object.keys(cameraZoomControls).forEach((controlName) => {
-  controls[controlName].addEventListener('input', () => {
-    setActualControlValue(controlName, Number(controls[controlName].value));
-  });
-});
 controls.connectSensor.addEventListener('click', toggleSerialConnection);
 controls.sensorZoomEnabled.addEventListener('change', updateSensorZoomMode);
 if (serialSupported) {
-  // Treat unplugging the active device like a manual disconnect.
   navigator.serial.addEventListener('disconnect', (event) => {
     if (event.target === serialState.port) disconnectSerialSensor();
   });
 }
-// Make value readouts editable by mouse click or keyboard activation.
 editableControls.forEach((controlName) => {
   const output = controls[`${controlName}Value`];
 
@@ -454,8 +393,6 @@ editableControls.forEach((controlName) => {
 });
 controls.valueEditor.addEventListener('submit', applyManualValue);
 controls.cancelValueEdit.addEventListener('click', closeValueEditor);
-controls.exportSettings.addEventListener('click', exportSettings);
-// RESET: Restore setting defaults and center focus without switching the active model.
 controls.reset.addEventListener('click', () => {
   TWEEN.removeAll();
   closeValueEditor();
@@ -466,50 +403,30 @@ controls.reset.addEventListener('click', () => {
   Object.assign(modelRotationSettings, modelRotationDefaults);
   Object.assign(modelPositionSettings, modelPositionDefaults);
   sensorZoomSettings.sensitivity = sensorZoomDefaults.sensitivity;
-  sensorZoomSettings.zoomOutHoldMs = sensorZoomDefaults.zoomOutHoldMs;
-  Object.values(cameraZoomControls).forEach((settingName) => {
-    sensorZoomSettings[settingName] = sensorZoomDefaults[settingName];
-  });
-  sensorSpeedControls.forEach((controlName) => {
-    sensorZoomSettings[controlName] = sensorZoomDefaults[controlName];
-  });
   applyModelPosition();
   focusPoint.copy(initialFocusPoint);
   cameraControls.target.copy(initialFocusPoint);
   applyModelRotation();
-  updateCameraZoomLimits();
   controls.targetValue.value = `${getActiveModelLabel()} center`;
   syncDofSliders();
   updateTargetControls();
   updateModelRotationControls();
   updateModelPositionControls();
   updateSensorCalibrationControl();
-  updateSensorSpeedControls();
-  updateSensorDelayControl();
   updateDof();
-  controls.settingsStatus.textContent = 'Default controls restored';
 });
-// STARTUP: Load the published JSON before enabling input or choosing the first model.
-const startupModelKey = await loadPublishedSettings();
 syncDofSliders();
 updateTargetControls();
 updateModelRotationControls();
 updateModelPositionControls();
 updateSensorCalibrationControl();
-updateSensorSpeedControls();
-updateSensorDelayControl();
-updateCameraZoomLimits();
 updateDof();
 updateSensorZoomMode();
-updateCameraPositionControls();
-cameraControls.enabled = true;
-controls.panel.inert = false;
-switchModel(startupModelKey);
+switchModel('1');
 
 canvas.addEventListener('pointerdown', onPointerDown);
 document.addEventListener('keydown', onDocumentKeyDown);
 
-// Resize the camera view, renderer, and postprocessing buffers together.
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
@@ -517,121 +434,6 @@ window.addEventListener('resize', () => {
   composer.setSize(window.innerWidth, window.innerHeight);
 });
 
-// SETTINGS EXPORT: Capture applied values, not clamped slider thumbs or live USB state.
-function collectSettingsPreset() {
-  return {
-    schemaVersion: 1,
-    model: activeModelKey || requestedModelKey,
-    dofEnabled: controls.enabled.checked,
-    controls: Object.fromEntries(editableControls.map((name) => [name, getActualControlValue(name)])),
-    camera: {
-      position: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
-      target: { x: cameraControls.target.x, y: cameraControls.target.y, z: cameraControls.target.z }
-    }
-  };
-}
-
-// Download a readable settings.json; publishing still requires replacing the file in the repo.
-function exportSettings() {
-  let url;
-  const link = document.createElement('a');
-  try {
-    const preset = collectSettingsPreset();
-    validateSettingsPreset(preset);
-    const json = `${JSON.stringify(preset, null, 2)}\n`;
-    url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
-    link.href = url;
-    link.download = 'settings.json';
-    document.body.append(link);
-    link.click();
-    controls.settingsStatus.textContent = 'Settings download started';
-  } catch (error) {
-    controls.settingsStatus.textContent = 'Export failed';
-    console.error('Unable to export settings', error);
-  } finally {
-    link.remove();
-    // Give the browser time to start reading the download before releasing its URL.
-    if (url) setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }
-}
-
-// Reject incomplete or invalid presets before changing any scene settings.
-function validateSettingsPreset(preset) {
-  if (preset?.schemaVersion !== 1 || typeof preset.dofEnabled !== 'boolean'
-    || typeof preset.model !== 'string' || !Object.hasOwn(modelAssets, preset.model)) {
-    throw new Error('Unsupported settings format or model');
-  }
-  for (const name of editableControls) {
-    if (!Number.isFinite(preset.controls?.[name])) throw new Error(`Invalid setting: ${name}`);
-  }
-  for (const vector of ['position', 'target']) {
-    for (const axis of ['x', 'y', 'z']) {
-      if (!Number.isFinite(preset.camera?.[vector]?.[axis])) {
-        throw new Error(`Invalid camera ${vector}.${axis}`);
-      }
-    }
-  }
-  const min = preset.controls.cameraMinDistance;
-  const max = preset.controls.cameraMaxDistance;
-  if (min < camera.near * 2 || max < min || !Number.isFinite(max * 1.1 + modelTargetSize)
-    || !Number.isFinite(preset.controls.zoomOutDelay * 1000)) {
-    throw new Error('Invalid camera limits or return delay');
-  }
-  const { position, target } = preset.camera;
-  const distance = Math.hypot(position.x - target.x, position.y - target.y, position.z - target.z);
-  if (!Number.isFinite(distance) || distance === 0) throw new Error('Invalid camera view');
-}
-
-// Apply model transforms first, then the saved world-space focus point and camera view.
-function applySettingsPreset(preset) {
-  validateSettingsPreset(preset);
-  TWEEN.removeAll();
-  controls.enabled.checked = preset.dofEnabled;
-  for (const name of editableControls) {
-    if (!Object.hasOwn(targetControlAxes, name)) setActualControlValue(name, preset.controls[name]);
-  }
-  // Moving the model also moves focus, so restore the exact saved target last.
-  for (const name of Object.keys(targetControlAxes)) {
-    setActualControlValue(name, preset.controls[name]);
-  }
-  const { position, target } = preset.camera;
-  cameraControls.target.set(target.x, target.y, target.z);
-  camera.position.set(position.x, position.y, position.z);
-  cameraControls.update();
-  updateCameraPositionControls();
-  updateFocusUniform();
-  updateDof();
-}
-
-// PUBLISHED PRESET: Read beside main.js (also works under a GitHub Pages repository path).
-// A missing, invalid, or slow response leaves the original code defaults in place.
-async function loadPublishedSettings() {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 5000);
-  try {
-    const response = await fetch(new URL('./settings.json', import.meta.url), {
-      cache: 'no-store',
-      signal: controller.signal
-    });
-    if (response.status === 404) {
-      controls.settingsStatus.textContent = 'No preset; using defaults';
-      return '1';
-    }
-    if (!response.ok) throw new Error(`Settings request failed: ${response.status}`);
-    const preset = await response.json();
-    applySettingsPreset(preset);
-    controls.settingsStatus.textContent = 'Published settings loaded';
-    return preset.model;
-  } catch (error) {
-    controls.settingsStatus.textContent = 'Preset unavailable; using defaults';
-    console.warn('Unable to load settings.json; using code defaults', error);
-    return '1';
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-// FRAME LOOP: Update motion, live readouts, and focus before drawing the scene.
 function animate() {
   const now = performance.now();
   const deltaSeconds = Math.min((now - previousFrameTime) / 1000, 0.1);
@@ -640,21 +442,10 @@ function animate() {
   TWEEN.update();
   applySensorZoom(now, deltaSeconds);
   cameraControls.update();
-  updateCameraPositionControls();
   updateFocusUniform();
   composer.render();
 }
 
-// Show the camera's current world X/Y/Z coordinates to two decimal places.
-function updateCameraPositionControls() {
-  for (const axis of ['x', 'y', 'z']) {
-    const output = controls[`camera${axis.toUpperCase()}Value`];
-    const value = camera.position[axis].toFixed(2);
-    if (output.value !== value) output.value = value;
-  }
-}
-
-// Refresh connection controls, zoom mode, and the latest sensor distance in centimeters.
 function updateSensorUI() {
   const buttonText = serialState.port ? 'Disconnect Sensor' : 'Connect Sensor';
   controls.connectSensor.textContent = serialState.busy ? serialState.status : buttonText;
@@ -669,7 +460,6 @@ function updateSensorUI() {
     : `${serialState.distanceCm.toFixed(1)} cm`;
 }
 
-// Switch between sensor and mouse zoom, clearing any pending sensor movement.
 function updateSensorZoomMode() {
   zoomOutStartedAt = null;
   smoothedSensorTarget = null;
@@ -677,7 +467,6 @@ function updateSensorZoomMode() {
   updateSensorUI();
 }
 
-// USB CONNECTION: Open the selected serial port, or disconnect the current device.
 async function toggleSerialConnection() {
   if (!serialSupported || serialState.busy) return;
   if (serialState.port) {
@@ -708,7 +497,6 @@ async function toggleSerialConnection() {
   }
 }
 
-// Read newline-separated sensor JSON; release the port and restore mouse mode on exit.
 async function readSerialSensor(port) {
   const decoder = new TextDecoder();
   let buffer = '';
@@ -757,7 +545,6 @@ async function readSerialSensor(port) {
   }
 }
 
-// Stop reading and wait for readSerialSensor() to finish closing the port.
 async function disconnectSerialSensor() {
   if (!serialState.port || serialState.busy) return;
 
@@ -775,7 +562,6 @@ async function disconnectSerialSensor() {
   await serialState.readTask;
 }
 
-// Accept { valid, cm } readings from 2-400 cm; ignore non-sensor startup messages.
 function handleSensorLine(line) {
   let reading;
   try {
@@ -793,8 +579,6 @@ function handleSensorLine(line) {
   updateSensorUI();
 }
 
-// SENSOR ZOOM: Map centimeters to camera distance, then smooth and speed-limit movement.
-// Outward motion uses the hold delay; missing readings request the far camera limit.
 function applySensorZoom(now, deltaSeconds) {
   if (serialState.port && !serialState.busy
     && now - serialState.lastReadingAt > sensorZoomSettings.staleAfterMs
@@ -804,14 +588,14 @@ function applySensorZoom(now, deltaSeconds) {
     updateSensorUI();
   }
   if (!modelLoaded || !controls.sensorZoomEnabled.checked || !serialState.port || serialState.busy
-    || (serialState.distanceCm === null && !['No valid echo', 'No data'].includes(serialState.status))) {
+    || (serialState.distanceCm === null && serialState.status !== 'No valid echo')) {
     zoomOutStartedAt = null;
     smoothedSensorTarget = null;
     return;
   }
 
   const range = sensorZoomSettings.farCm - sensorZoomSettings.nearCm;
-  // No echo or a silent stream requests a delayed return; unchanged valid readings remain active.
+  // Fresh no-echo readings request a delayed return; lost serial data holds the view.
   const rawAmount = serialState.distanceCm === null ? 1 : (range === 0 ? 0 : THREE.MathUtils.clamp(
     (serialState.distanceCm - sensorZoomSettings.nearCm) / range, 0, 1
   ));
@@ -847,28 +631,24 @@ function applySensorZoom(now, deltaSeconds) {
     Math.max(currentDistance, targetDistance)
   );
   // Smooth the destination first, then ease the camera toward it each frame.
-  const speed = Math.max(0, zoomingOut ? sensorZoomSettings.zoomOutSpeed : sensorZoomSettings.zoomInSpeed);
-  const motionDelta = deltaSeconds * speed;
-  if (motionDelta <= 0) return;
   const targetBlend = sensorZoomSettings.targetSmoothingSeconds > 0
-    ? 1 - Math.exp(-motionDelta / sensorZoomSettings.targetSmoothingSeconds)
+    ? 1 - Math.exp(-deltaSeconds / sensorZoomSettings.targetSmoothingSeconds)
     : 1;
   smoothedSensorTarget = THREE.MathUtils.lerp(smoothedSensorTarget, targetDistance, targetBlend);
   const smoothingSeconds = smoothedSensorTarget > currentDistance
     ? sensorZoomSettings.zoomOutSmoothingSeconds
     : sensorZoomSettings.smoothingSeconds;
   const blend = smoothingSeconds > 0
-    ? 1 - Math.exp(-motionDelta / smoothingSeconds)
+    ? 1 - Math.exp(-deltaSeconds / smoothingSeconds)
     : 1;
   const nextDistance = THREE.MathUtils.lerp(currentDistance, smoothedSensorTarget, blend);
-  const maxStep = Math.max(0, sensorZoomSettings.maxZoomSpeed) * motionDelta;
+  const maxStep = Math.max(0, sensorZoomSettings.maxZoomSpeed) * deltaSeconds;
   const distance = currentDistance + THREE.MathUtils.clamp(nextDistance - currentDistance, -maxStep, maxStep);
   if (currentDistance === 0) camera.getWorldDirection(sensorCameraOffset).negate();
   sensorCameraOffset.setLength(distance);
   camera.position.copy(cameraControls.target).add(sensorCameraOffset);
 }
 
-// CLICK TO FOCUS: Raycast the active model and ease focus toward the clicked surface.
 function onPointerDown(event) {
   if (event.target !== canvas) return;
 
@@ -892,7 +672,6 @@ function onPointerDown(event) {
   }
 }
 
-// Handle model keys (1/2/3) and H for settings; leave text and numeric editing alone.
 function onDocumentKeyDown(event) {
   const activeElement = document.activeElement;
   const activeTag = activeElement?.tagName.toLowerCase();
@@ -914,7 +693,6 @@ function onDocumentKeyDown(event) {
   controls.panel.setAttribute('aria-hidden', controls.panel.classList.contains('is-hidden'));
 }
 
-// Measure focus depth along the camera's view axis, not straight-line distance.
 function getFocusDistance(point) {
   camera.updateMatrixWorld();
   const viewPoint = point.clone().applyMatrix4(camera.matrixWorldInverse);
@@ -922,7 +700,6 @@ function getFocusDistance(point) {
   return -viewPoint.z;
 }
 
-// Keep the shader and live focus readout aligned with camera/target movement.
 function updateFocusUniform() {
   const focus = getFocusDistance(focusPoint);
 
@@ -931,7 +708,6 @@ function updateFocusUniform() {
   controls.focusValue.value = focus.toFixed(2);
 }
 
-// Scale the base blur settings with camera distance without changing their stored values.
 function applyCameraDistanceBlur(focus) {
   const multiplier = getCameraDistanceBlurMultiplier(focus);
 
@@ -939,7 +715,6 @@ function applyCameraDistanceBlur(focus) {
   dofPass.uniforms.blurSpread.value = Math.max(0, dofSettings.blurSpread * multiplier);
 }
 
-// Smoothly blend near/far blur strengths from cameraDistanceBlurSettings.
 function getCameraDistanceBlurMultiplier(focus) {
   if (!cameraDistanceBlurSettings.enabled) return 1;
 
@@ -954,7 +729,6 @@ function getCameraDistanceBlurMultiplier(focus) {
   );
 }
 
-// Replace any focus animation with a half-second transition to the selected point.
 function tweenFocusTo(point) {
   TWEEN.removeAll();
 
@@ -965,34 +739,29 @@ function tweenFocusTo(point) {
     .start();
 }
 
-// Stop animated focus and refresh the manually positioned target controls.
 function updateTargetFromSliders() {
   TWEEN.removeAll();
   controls.targetValue.value = 'manual target';
   updateTargetControls();
 }
 
-// Store a blur slider's numeric value and apply it to the DOF effect.
 function updateDofSettingFromSlider(controlName) {
   dofSettings[controlName] = Number(controls[controlName].value);
   updateDof();
 }
 
-// Move one focus-target axis directly, overriding any focus animation.
 function updateTargetAxisFromSlider(axis, input) {
   TWEEN.removeAll();
   focusPoint[axis] = Number(input.value);
   updateTargetFromSliders();
 }
 
-// Store a rotation slider value in degrees and update the active model.
 function updateModelRotationFromSlider(controlName) {
   modelRotationSettings[controlName] = Number(controls[controlName].value);
   applyModelRotation();
   updateModelRotationControls();
 }
 
-// Refresh target X/Y/Z readouts; clamp only the slider thumbs, not the actual coordinates.
 function updateTargetControls() {
   controls.targetX.value = getSliderPosition(controls.targetX, focusPoint.x);
   controls.targetY.value = getSliderPosition(controls.targetY, focusPoint.y);
@@ -1002,7 +771,6 @@ function updateTargetControls() {
   controls.targetZValue.value = focusPoint.z.toFixed(2);
 }
 
-// Refresh model rotation sliders and their degree readouts.
 function updateModelRotationControls() {
   Object.keys(modelRotationControlAxes).forEach((controlName) => {
     controls[controlName].value = getSliderPosition(controls[controlName], modelRotationSettings[controlName]);
@@ -1010,7 +778,6 @@ function updateModelRotationControls() {
   });
 }
 
-// Refresh model position sliders and their scene-unit readouts.
 function updateModelPositionControls() {
   Object.keys(modelPositionControlAxes).forEach((controlName) => {
     controls[controlName].value = getSliderPosition(controls[controlName], modelPositionSettings[controlName]);
@@ -1018,55 +785,17 @@ function updateModelPositionControls() {
   });
 }
 
-// Display the current sensor sensitivity multiplier.
 function updateSensorCalibrationControl() {
   controls.sensorSensitivity.value = getSliderPosition(controls.sensorSensitivity, sensorZoomSettings.sensitivity);
   controls.sensorSensitivityValue.value = `${sensorZoomSettings.sensitivity.toFixed(2)}x`;
 }
 
-// Display the independent inward and outward camera speed multipliers.
-function updateSensorSpeedControls() {
-  sensorSpeedControls.forEach((controlName) => {
-    const value = sensorZoomSettings[controlName];
-    controls[controlName].value = getSliderPosition(controls[controlName], value);
-    controls[`${controlName}Value`].value = `${value.toFixed(2)}x`;
-  });
-}
-
-// Display the stored millisecond hold delay in seconds.
-function updateSensorDelayControl() {
-  const seconds = sensorZoomSettings.zoomOutHoldMs / 1000;
-  controls.zoomOutDelay.value = getSliderPosition(controls.zoomOutDelay, seconds);
-  controls.zoomOutDelayValue.value = `${seconds.toFixed(2)} s`;
-}
-
-// ZOOM LIMITS: Apply shared sensor/mouse distance bounds and refresh camera readouts.
-function updateCameraZoomLimits() {
-  cameraControls.minDistance = sensorZoomSettings.nearCameraDistance;
-  cameraControls.maxDistance = sensorZoomSettings.farCameraDistance;
-  // Manual values can exceed the sliders; keep distant models inside the clipping plane.
-  camera.far = Math.max(defaultCameraFar, cameraControls.maxDistance * 1.1 + modelTargetSize);
-  camera.updateProjectionMatrix();
-  cameraControls.update();
-  smoothedSensorTarget = null;
-
-  Object.entries(cameraZoomControls).forEach(([controlName, settingName]) => {
-    const value = sensorZoomSettings[settingName];
-    controls[controlName].value = getSliderPosition(controls[controlName], value);
-    controls[`${controlName}Value`].value = value.toFixed(2);
-  });
-  updateCameraPositionControls();
-  updateFocusUniform();
-}
-
-// Position DOF slider thumbs without truncating manually entered setting values.
 function syncDofSliders() {
   Object.keys(dofSettingDefaults).forEach((controlName) => {
     controls[controlName].value = getSliderPosition(controls[controlName], dofSettings[controlName]);
   });
 }
 
-// MANUAL ENTRY: Open the shared numeric editor without the slider's min/max restrictions.
 function openValueEditor(controlName) {
   const output = controls[`${controlName}Value`];
 
@@ -1081,7 +810,6 @@ function openValueEditor(controlName) {
   controls.manualValue.select();
 }
 
-// Validate and apply the submitted number, then close the editor.
 function applyManualValue(event) {
   event.preventDefault();
 
@@ -1096,65 +824,30 @@ function applyManualValue(event) {
   closeValueEditor();
 }
 
-// Hide the numeric editor and clear its active setting.
 function closeValueEditor() {
   controls.valueEditor.hidden = true;
   activeManualControl = null;
 }
 
-// Convert input to a finite number; return null for invalid or infinite values.
 function parseManualValue(value) {
   const rawValue = Number(value);
 
   return Number.isFinite(rawValue) ? rawValue : null;
 }
 
-// Read a setting's stored value rather than its potentially clamped slider value.
 function getActualControlValue(controlName) {
   const targetAxis = targetControlAxes[controlName];
 
   if (targetAxis) return focusPoint[targetAxis];
   if (controlName === 'sensorSensitivity') return sensorZoomSettings.sensitivity;
-  if (controlName === 'zoomOutDelay') return sensorZoomSettings.zoomOutHoldMs / 1000;
-  if (Object.prototype.hasOwnProperty.call(cameraZoomControls, controlName)) {
-    return sensorZoomSettings[cameraZoomControls[controlName]];
-  }
-  if (sensorSpeedControls.includes(controlName)) return sensorZoomSettings[controlName];
   if (Object.prototype.hasOwnProperty.call(modelPositionControlAxes, controlName)) return modelPositionSettings[controlName];
   if (isModelRotationControl(controlName)) return modelRotationSettings[controlName];
 
   return dofSettings[controlName];
 }
 
-// SETTINGS ROUTER: Store a slider/manual edit and update the matching scene controls.
-// Camera limits stay positive and ordered; other manual values can exceed slider ranges.
 function setActualControlValue(controlName, value) {
   const targetAxis = targetControlAxes[controlName];
-
-  if (Object.prototype.hasOwnProperty.call(cameraZoomControls, controlName)) {
-    const distance = Math.max(camera.near * 2, value);
-    if (controlName === 'cameraMinDistance') {
-      sensorZoomSettings.nearCameraDistance = distance;
-      sensorZoomSettings.farCameraDistance = Math.max(sensorZoomSettings.farCameraDistance, distance);
-    } else {
-      sensorZoomSettings.farCameraDistance = distance;
-      sensorZoomSettings.nearCameraDistance = Math.min(sensorZoomSettings.nearCameraDistance, distance);
-    }
-    updateCameraZoomLimits();
-    return;
-  }
-
-  if (controlName === 'zoomOutDelay') {
-    sensorZoomSettings.zoomOutHoldMs = value * 1000;
-    updateSensorDelayControl();
-    return;
-  }
-
-  if (sensorSpeedControls.includes(controlName)) {
-    sensorZoomSettings[controlName] = value;
-    updateSensorSpeedControls();
-    return;
-  }
 
   if (controlName === 'sensorSensitivity') {
     sensorZoomSettings.sensitivity = value;
@@ -1191,12 +884,10 @@ function setActualControlValue(controlName, value) {
   updateDof();
 }
 
-// Identify controls belonging to the model's X/Y/Z rotation settings.
 function isModelRotationControl(controlName) {
   return Object.prototype.hasOwnProperty.call(modelRotationControlAxes, controlName);
 }
 
-// Convert degree settings to radians on the shared container, preserving rotation on swaps.
 function applyModelRotation() {
   modelRoot.rotation.set(
     THREE.MathUtils.degToRad(modelRotationSettings.modelRotationX),
@@ -1205,7 +896,6 @@ function applyModelRotation() {
   );
 }
 
-// Move the model container and focus point together, then refresh focus-target bounds.
 function applyModelPosition() {
   const nextPosition = new THREE.Vector3(
     modelPositionSettings.modelPositionX,
@@ -1228,7 +918,6 @@ function applyModelPosition() {
   updateFocusUniform();
 }
 
-// Clamp a slider's displayed position while leaving the stored setting unchanged.
 function getSliderPosition(input, value) {
   const min = Number(input.min);
   const max = Number(input.max);
@@ -1236,12 +925,10 @@ function getSliderPosition(input, value) {
   return THREE.MathUtils.clamp(value, min, max);
 }
 
-// Show whole numbers without decimals and fractional values with two decimal places.
 function formatCompactValue(value) {
   return Number.isInteger(value) ? String(value) : value.toFixed(2);
 }
 
-// Fit target X/Y/Z slider ranges around the active model's world-space bounds.
 function updateTargetSliderRanges(box) {
   const center = box.getCenter(new THREE.Vector3());
   const size = box.getSize(new THREE.Vector3());
@@ -1259,20 +946,16 @@ function updateTargetSliderRanges(box) {
   });
 }
 
-// Format the clicked surface name and world coordinates for the target readout.
 function getTargetLabel(object, point) {
   const label = object.name || `${getActiveModelLabel()} surface`;
 
   return `${label} (${point.x.toFixed(2)}, ${point.y.toFixed(2)}, ${point.z.toFixed(2)})`;
 }
 
-// Return the selected model's readable name, or a fallback before loading completes.
 function getActiveModelLabel() {
   return modelAssets[activeModelKey]?.label || 'model';
 }
 
-// MODEL LOADING: Cache each GLB load, center it, and scale its largest side to modelTargetSize.
-// Failed loads are removed from the cache so the same model key can retry.
 function loadModel(key) {
   if (modelCache.has(key)) return modelCache.get(key);
 
@@ -1311,8 +994,6 @@ function loadModel(key) {
   return loading;
 }
 
-// MODEL SWITCHING: Show only the requested model while retaining shared scene settings.
-// Keep the current model visible during loading; ignore results from superseded requests.
 async function switchModel(key) {
   if (!Object.prototype.hasOwnProperty.call(modelAssets, key)) return;
 

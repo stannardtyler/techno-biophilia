@@ -239,6 +239,27 @@ button:focus-visible {
   display: none;
 }
 
+.export-settings {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.export-settings img {
+  flex-shrink: 0;
+  filter: invert(1);
+}
+
+.settings-status {
+  margin: 7px 0 0;
+  min-height: 2.8em;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: rgba(246, 247, 242, 0.78);
+  overflow-wrap: anywhere;
+}
+
 .value-editor {
   position: sticky;
   bottom: 0;
