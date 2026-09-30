@@ -217,14 +217,29 @@ const sensorZoomSettings = { ...sensorZoomDefaults };
 let zoomOutStartedAt = null;
 let smoothedSensorTarget = null;
 const serialSupported = window.isSecureContext && 'serial' in navigator;
+// SERIAL RECOVERY: Times are milliseconds. Silence triggers a restart, not an unchanged distance.
+const serialRecoverySettings = {
+  checkIntervalMs: 500,
+  silentAfterMs: 5000,
+  retryDelaysMs: [0, 2000, 5000, 10000, 30000]
+};
 const serialState = {
+  selectedPort: null,
   port: null,
   reader: null,
+  cancelTask: null,
   readTask: null,
   busy: false,
-  disconnecting: false,
+  connectionWanted: false,
+  restartRequested: false,
+  retryTimer: null,
+  retryResolve: null,
+  nextRetryAt: 0,
+  retryAttempt: 0,
+  reconnectAttempts: 0,
   distanceCm: null,
-  lastReadingAt: 0,
+  openedAt: 0,
+  lastReadingAt: null,
   status: serialSupported ? 'Disconnected' : 'Use Chrome or Edge on localhost or HTTPS'
 };
 const sensorCameraOffset = new THREE.Vector3();
@@ -278,12 +293,28 @@ sensorCalibrationControl.innerHTML = `
 `;
 document.querySelector('#sensorSettings').append(sensorCalibrationControl);
 
+// Keep the connection diagnostics in main.js, using the existing settings layout.
+const sensorDiagnostics = document.createElement('div');
+sensorDiagnostics.innerHTML = `
+  <p class="target">
+    <span>last message</span>
+    <output id="sensorLastMessageValue" aria-live="off">-- s</output>
+  </p>
+  <p class="target">
+    <span>reconnect attempts</span>
+    <output id="sensorReconnectValue" aria-live="off">0</output>
+  </p>
+`;
+document.querySelector('#sensorSettings').append(sensorDiagnostics);
+
 const controls = {
   panel: document.querySelector('.settings'),
   sensorZoomEnabled: document.querySelector('#sensorZoomEnabled'),
   sensorZoomState: document.querySelector('#sensorZoomState'),
   sensorStatus: document.querySelector('#sensorStatus'),
   sensorDistanceValue: document.querySelector('#sensorDistanceValue'),
+  sensorLastMessageValue: document.querySelector('#sensorLastMessageValue'),
+  sensorReconnectValue: document.querySelector('#sensorReconnectValue'),
   connectSensor: document.querySelector('#connectSensor'),
   sensorSensitivity: document.querySelector('#sensorSensitivity'),
   sensorSensitivityValue: document.querySelector('#sensorSensitivityValue'),
@@ -432,9 +463,9 @@ Object.keys(cameraZoomControls).forEach((controlName) => {
 controls.connectSensor.addEventListener('click', toggleSerialConnection);
 controls.sensorZoomEnabled.addEventListener('change', updateSensorZoomMode);
 if (serialSupported) {
-  // Treat unplugging the active device like a manual disconnect.
+  // Device loss should recover automatically; only the Disconnect button cancels that intent.
   navigator.serial.addEventListener('disconnect', (event) => {
-    if (event.target === serialState.port) disconnectSerialSensor();
+    if (event.target === serialState.selectedPort) requestSerialRestart('Device disconnected');
   });
 }
 // Make value readouts editable by mouse click or keyboard activation.
@@ -508,6 +539,12 @@ switchModel(startupModelKey);
 
 canvas.addEventListener('pointerdown', onPointerDown);
 document.addEventListener('keydown', onDocumentKeyDown);
+
+// Check serial health independently of the render loop, including when the page becomes visible.
+if (serialSupported) {
+  setInterval(monitorSerialConnection, serialRecoverySettings.checkIntervalMs);
+  document.addEventListener('visibilitychange', monitorSerialConnection);
+}
 
 // Resize the camera view, renderer, and postprocessing buffers together.
 window.addEventListener('resize', () => {
@@ -656,10 +693,12 @@ function updateCameraPositionControls() {
 
 // Refresh connection controls, zoom mode, and the latest sensor distance in centimeters.
 function updateSensorUI() {
-  const buttonText = serialState.port ? 'Disconnect Sensor' : 'Connect Sensor';
-  controls.connectSensor.textContent = serialState.busy ? serialState.status : buttonText;
-  controls.connectSensor.disabled = !serialSupported || serialState.busy;
-  controls.sensorZoomEnabled.disabled = !serialState.port || serialState.busy;
+  const canDisconnect = serialState.connectionWanted || serialState.port !== null;
+  controls.connectSensor.textContent = canDisconnect ? 'Disconnect Sensor'
+    : serialState.busy ? serialState.status : 'Connect Sensor';
+  // Allow an intentional disconnect even while opening or waiting to retry.
+  controls.connectSensor.disabled = !serialSupported || (!serialState.connectionWanted && serialState.busy);
+  controls.sensorZoomEnabled.disabled = !serialState.connectionWanted;
   controls.sensorZoomState.textContent = controls.sensorZoomEnabled.checked ? 'Sensor' : 'Mouse';
   if (controls.sensorStatus.value !== serialState.status) {
     controls.sensorStatus.value = serialState.status;
@@ -667,6 +706,15 @@ function updateSensorUI() {
   controls.sensorDistanceValue.value = serialState.distanceCm === null
     ? '-- cm'
     : `${serialState.distanceCm.toFixed(1)} cm`;
+  updateSensorDiagnostics();
+}
+
+// Show time since an actual message and total automatic reopen attempts for this connection.
+function updateSensorDiagnostics() {
+  const age = serialState.lastReadingAt === null ? '-- s'
+    : `${Math.max(0, (performance.now() - serialState.lastReadingAt) / 1000).toFixed(1)} s`;
+  if (controls.sensorLastMessageValue.value !== age) controls.sensorLastMessageValue.value = age;
+  controls.sensorReconnectValue.value = String(serialState.reconnectAttempts);
 }
 
 // Switch between sensor and mouse zoom, clearing any pending sensor movement.
@@ -677,13 +725,14 @@ function updateSensorZoomMode() {
   updateSensorUI();
 }
 
-// USB CONNECTION: Open the selected serial port, or disconnect the current device.
+// USB CONNECTION: Ask for permission only on a user click; retries reuse this exact port.
 async function toggleSerialConnection() {
-  if (!serialSupported || serialState.busy) return;
-  if (serialState.port) {
+  if (!serialSupported) return;
+  if (serialState.connectionWanted || serialState.port) {
     await disconnectSerialSensor();
     return;
   }
+  if (serialState.busy) return;
 
   serialState.busy = true;
   serialState.status = 'Connecting...';
@@ -691,37 +740,127 @@ async function toggleSerialConnection() {
 
   try {
     const port = await navigator.serial.requestPort();
-    await port.open({ baudRate: sensorZoomSettings.baudRate });
-    serialState.port = port;
+    serialState.selectedPort = port;
+    serialState.connectionWanted = true;
     serialState.distanceCm = null;
-    serialState.lastReadingAt = performance.now();
-    serialState.status = 'Waiting for data';
-    serialState.readTask = readSerialSensor(port);
+    serialState.lastReadingAt = null;
+    serialState.retryAttempt = 0;
+    serialState.reconnectAttempts = 0;
+    serialState.readTask = runSerialConnection(port);
   } catch (error) {
     serialState.status = error.name === 'NotFoundError'
       ? 'Disconnected'
       : 'Cannot connect. Close Serial Monitor and retry.';
     if (error.name !== 'NotFoundError') console.error('Serial connection failed', error);
   } finally {
-    serialState.busy = false;
+    if (!serialState.connectionWanted) serialState.busy = false;
     updateSensorUI();
   }
 }
 
-// Read newline-separated sensor JSON; release the port and restore mouse mode on exit.
+// SERIAL LIFECYCLE: One task owns all open/read/close operations, preventing overlapping retries.
+async function runSerialConnection(port) {
+  let retry = false;
+  try {
+    while (serialState.connectionWanted) {
+      if (retry) {
+        await waitForSerialRetry();
+        if (!serialState.connectionWanted) break;
+        serialState.reconnectAttempts++;
+      }
+      serialState.busy = true;
+      serialState.restartRequested = false;
+      serialState.distanceCm = null;
+      serialState.status = retry ? 'Reconnecting...' : 'Connecting...';
+      updateSensorUI();
+      try {
+        // If a prior close failed, finish it before attempting another open.
+        await closeSerialPort();
+        if (!serialState.connectionWanted) break;
+        await port.open({ baudRate: sensorZoomSettings.baudRate });
+        serialState.port = port;
+        if (!serialState.connectionWanted) break;
+        serialState.openedAt = performance.now();
+        serialState.busy = false;
+        serialState.status = 'Waiting for data';
+        updateSensorUI();
+        await readSerialSensor(port);
+      } catch (error) {
+        if (serialState.connectionWanted) console.warn('Sensor connection interrupted; retrying', error);
+      } finally {
+        serialState.busy = true;
+        serialState.distanceCm = null;
+        serialState.status = serialState.connectionWanted ? 'Reconnecting...' : 'Disconnecting...';
+        updateSensorUI();
+        try {
+          await closeSerialPort();
+        } catch (error) {
+          console.warn('Serial port close failed; will retry closing before reopening', error);
+        }
+      }
+      retry = true;
+    }
+  } finally {
+    serialState.readTask = null;
+    serialState.busy = false;
+    serialState.restartRequested = false;
+    if (!serialState.port) serialState.selectedPort = null;
+    serialState.status = serialState.port ? 'Close failed; retry Disconnect' : 'Disconnected';
+    updateSensorUI();
+  }
+}
+
+// Back off after repeated failures; a recognized message resets the delay sequence.
+async function waitForSerialRetry() {
+  const delays = serialRecoverySettings.retryDelaysMs;
+  const delay = delays[Math.min(serialState.retryAttempt++, delays.length - 1)];
+  serialState.busy = false;
+  serialState.nextRetryAt = performance.now() + delay;
+  serialState.status = delay ? `Retrying in ${Math.ceil(delay / 1000)} s` : 'Reconnecting...';
+  updateSensorUI();
+  if (delay === 0) return;
+  await new Promise((resolve) => {
+    serialState.retryResolve = resolve;
+    serialState.retryTimer = setTimeout(cancelSerialRetry, delay);
+  });
+}
+
+// Wake a pending retry wait immediately, including when Disconnect was clicked intentionally.
+function cancelSerialRetry() {
+  clearTimeout(serialState.retryTimer);
+  serialState.retryTimer = null;
+  serialState.nextRetryAt = 0;
+  const resolve = serialState.retryResolve;
+  serialState.retryResolve = null;
+  if (resolve) resolve();
+}
+
+// Close only after the reader has released its lock; keep the port reference if cleanup fails.
+async function closeSerialPort() {
+  if (serialState.cancelTask) await serialState.cancelTask;
+  const port = serialState.port;
+  if (!port) return;
+  try {
+    await port.close();
+  } catch (error) {
+    if (error.name !== 'InvalidStateError' || port.readable || port.writable) throw error;
+  }
+  serialState.port = null;
+}
+
+// Read newline-separated JSON until stopped; lifecycle cleanup owns closing and reopening.
 async function readSerialSensor(port) {
   const decoder = new TextDecoder();
   let buffer = '';
   let reader;
-  let finalStatus = 'Disconnected';
 
   try {
     reader = port.readable.getReader();
     serialState.reader = reader;
 
-    while (!serialState.disconnecting) {
+    while (serialState.connectionWanted && !serialState.restartRequested) {
       const { value, done } = await reader.read();
-      if (done) break;
+      if (done || !serialState.connectionWanted || serialState.restartRequested) break;
 
       // USB chunks may contain part of a line or several complete readings.
       buffer += decoder.decode(value, { stream: true });
@@ -730,49 +869,91 @@ async function readSerialSensor(port) {
       lines.forEach(handleSensorLine);
       if (buffer.length > 4096) buffer = '';
     }
-  } catch (error) {
-    if (!serialState.disconnecting) {
-      finalStatus = 'Connection lost';
-      console.error('Serial read failed', error);
-    }
   } finally {
-    serialState.busy = true;
-    serialState.distanceCm = null;
-    controls.sensorZoomEnabled.checked = false;
-    serialState.status = 'Disconnecting...';
-    updateSensorZoomMode();
-    if (reader) reader.releaseLock();
-    serialState.reader = null;
     try {
-      await port.close();
-    } catch (error) {
-      console.warn('Serial port could not be closed', error);
+      if (reader) reader.releaseLock();
+    } finally {
+      serialState.reader = null;
     }
-    serialState.port = null;
-    serialState.readTask = null;
-    serialState.busy = false;
-    serialState.disconnecting = false;
-    serialState.status = finalStatus;
-    updateSensorUI();
   }
 }
 
-// Stop reading and wait for readSerialSensor() to finish closing the port.
-async function disconnectSerialSensor() {
-  if (!serialState.port || serialState.busy) return;
+// Cancel a pending read so the lifecycle task can release the stream and close its port.
+async function cancelSerialReader() {
+  if (serialState.cancelTask) return serialState.cancelTask;
+  const reader = serialState.reader;
+  if (!reader) return;
+  // Share one cancellation and let closeSerialPort() wait for it to finish.
+  serialState.cancelTask = reader.cancel().catch((error) => {
+    console.warn('Serial reader cancellation failed', error);
+    // Releasing a failed reader also rejects any pending read instead of leaving it waiting.
+    try {
+      reader.releaseLock();
+    } catch (releaseError) {
+      console.warn('Serial reader release failed', releaseError);
+    }
+  });
+  try {
+    await serialState.cancelTask;
+  } finally {
+    serialState.cancelTask = null;
+  }
+}
 
+// Stop automatic recovery first, then finish any in-flight open/read/close before disconnecting.
+async function disconnectSerialSensor() {
+  serialState.connectionWanted = false;
+  cancelSerialRetry();
   serialState.busy = true;
-  serialState.disconnecting = true;
   serialState.distanceCm = null;
   serialState.status = 'Disconnecting...';
   controls.sensorZoomEnabled.checked = false;
   updateSensorZoomMode();
+  await cancelSerialReader();
+  if (serialState.readTask) await serialState.readTask;
   try {
-    if (serialState.reader) await serialState.reader.cancel();
+    await closeSerialPort();
   } catch (error) {
-    console.warn('Serial reader was already disconnected', error);
+    console.warn('Serial disconnect could not close the port', error);
+  } finally {
+    serialState.busy = false;
+    if (!serialState.port) serialState.selectedPort = null;
+    serialState.status = serialState.port ? 'Close failed; retry Disconnect' : 'Disconnected';
+    updateSensorUI();
   }
-  await serialState.readTask;
+}
+
+// Ask the current read to end; the existing lifecycle task performs the restart exactly once.
+function requestSerialRestart(reason) {
+  if (!serialState.connectionWanted || serialState.busy || serialState.restartRequested) return;
+  serialState.restartRequested = true;
+  serialState.distanceCm = null;
+  serialState.status = 'Reconnecting...';
+  console.warn(`Restarting sensor serial connection: ${reason}`);
+  updateSensorUI();
+  void cancelSerialReader();
+}
+
+// HEALTH CHECK: Count messages, not movement; valid:false is still a healthy heartbeat.
+function monitorSerialConnection() {
+  const now = performance.now();
+  if (serialState.connectionWanted) {
+    if (serialState.retryTimer !== null) {
+      const seconds = Math.max(0, Math.ceil((serialState.nextRetryAt - now) / 1000));
+      serialState.status = `Retrying in ${seconds} s`;
+      updateSensorUI();
+    } else if (serialState.port && serialState.reader && !serialState.busy && !serialState.restartRequested) {
+      // Give each newly opened port a full startup window, even after a long outage.
+      const age = now - Math.max(serialState.openedAt, serialState.lastReadingAt ?? serialState.openedAt);
+      if (age > sensorZoomSettings.staleAfterMs) {
+        serialState.distanceCm = null;
+        serialState.status = 'No data';
+        updateSensorUI();
+      }
+      if (age >= serialRecoverySettings.silentAfterMs) requestSerialRestart('No data');
+    }
+  }
+  updateSensorDiagnostics();
 }
 
 // Accept { valid, cm } readings from 2-400 cm; ignore non-sensor startup messages.
@@ -783,9 +964,11 @@ function handleSensorLine(line) {
   } catch {
     return; // Ignore ESP32 startup messages and incomplete/garbled JSON.
   }
-  if (!reading || typeof reading.valid !== 'boolean') return;
+  if (!reading || typeof reading.valid !== 'boolean'
+    || (reading.valid && !Number.isFinite(reading.cm))) return;
 
   serialState.lastReadingAt = performance.now();
+  serialState.retryAttempt = 0;
   const valid = reading.valid && Number.isFinite(reading.cm)
     && reading.cm >= 2 && reading.cm <= 400;
   serialState.distanceCm = valid ? reading.cm : null;
@@ -796,15 +979,8 @@ function handleSensorLine(line) {
 // SENSOR ZOOM: Map centimeters to camera distance, then smooth and speed-limit movement.
 // Outward motion uses the hold delay; missing readings request the far camera limit.
 function applySensorZoom(now, deltaSeconds) {
-  if (serialState.port && !serialState.busy
-    && now - serialState.lastReadingAt > sensorZoomSettings.staleAfterMs
-    && serialState.status !== 'No data') {
-    serialState.distanceCm = null;
-    serialState.status = 'No data';
-    updateSensorUI();
-  }
-  if (!modelLoaded || !controls.sensorZoomEnabled.checked || !serialState.port || serialState.busy
-    || (serialState.distanceCm === null && !['No valid echo', 'No data'].includes(serialState.status))) {
+  // Preserve the delayed return while reconnecting; missing data always targets the far limit.
+  if (!modelLoaded || !controls.sensorZoomEnabled.checked || !serialState.connectionWanted) {
     zoomOutStartedAt = null;
     smoothedSensorTarget = null;
     return;
