@@ -148,19 +148,16 @@ cameraControls.enableDamping = true;
 cameraControls.update();
 
 const modelRoot = new THREE.Group();
-// MODEL QUEUE: Add a key/file entry here for both keyboard selection and automatic cycling.
+// MODEL SHORTCUTS: Add a key/file entry here to make another GLB selectable.
 const modelAssets = {
   '1': { url: './treeScan.glb', label: 'tree scan' },
   '2': { url: './treeHole.glb', label: 'tree hole' },
-  '3': { url: './anotherTreeScan.glb', label: 'another tree scan' },
-  '4': { url: './percaderoRock.glb', label: 'percadero rock' }
+  '3': { url: './anotherTreeScan.glb', label: 'another tree scan' }
 };
 const modelCache = new Map();
 let activeModelKey = null;
 let requestedModelKey = '1';
 let modelRequestId = 0;
-let modelLoading = false;
-let automaticModelRequest = false;
 const focusTargets = [];
 const initialFocusPoint = new THREE.Vector3();
 // MODEL DEFAULTS: Largest model dimension and starting X/Y/Z position, in scene units.
@@ -182,34 +179,6 @@ const modelRotationDefaults = {
   modelRotationZ: 0
 };
 const modelRotationSettings = { ...modelRotationDefaults };
-// ZOOM EVENTS: Delays are seconds; speed is degrees/second, multiplied by each signed axis amount.
-const zoomBehaviorDefaults = {
-  modelSwitchDelay: 30,
-  rotationDelay: 2,
-  rotationSpeed: 6,
-  rotationAxisX: 0,
-  rotationAxisY: 1,
-  rotationAxisZ: 0
-};
-const zoomBehaviorSettings = { ...zoomBehaviorDefaults };
-const zoomBehaviorToggleDefaults = { modelCycleEnabled: true, proximityRotationEnabled: true };
-const zoomBehaviorToggles = { ...zoomBehaviorToggleDefaults };
-const zoomBehaviorState = {
-  atMax: false,
-  atMin: false,
-  maxElapsed: 0,
-  minElapsed: 0,
-  rotationPhase: 'idle',
-  rotationOffset: new THREE.Quaternion(),
-  returnFrom: new THREE.Quaternion(),
-  returnElapsed: 0
-};
-// A small arrival tolerance accommodates the sensor's eased zoom; return time is independently editable.
-const zoomArrivalTolerance = 0.02;
-const rotationReturnSeconds = 1.5;
-const rotationIdentity = new THREE.Quaternion();
-const rotationStep = new THREE.Quaternion();
-const rotationAxis = new THREE.Vector3();
 // Change these defaults if you want Reset to return to different DOF values.
 const dofSettingDefaults = {
   minDistance: 1,
@@ -338,10 +307,7 @@ sensorDiagnostics.innerHTML = `
 `;
 document.querySelector('#sensorSettings').append(sensorDiagnostics);
 
-// Build the new collapsible groups here so index.html and style.css remain unchanged.
-const zoomBehaviorInputs = createZoomBehaviorControls();
 const controls = {
-  ...zoomBehaviorInputs,
   panel: document.querySelector('.settings'),
   sensorZoomEnabled: document.querySelector('#sensorZoomEnabled'),
   sensorZoomState: document.querySelector('#sensorZoomState'),
@@ -423,8 +389,7 @@ const editableControls = [
   'cameraMaxDistance',
   'modelRotationX',
   'modelRotationY',
-  'modelRotationZ',
-  ...Object.keys(zoomBehaviorDefaults)
+  'modelRotationZ'
 ];
 const targetControlAxes = {
   targetX: 'x',
@@ -495,22 +460,6 @@ Object.keys(cameraZoomControls).forEach((controlName) => {
     setActualControlValue(controlName, Number(controls[controlName].value));
   });
 });
-Object.keys(zoomBehaviorDefaults).forEach((controlName) => {
-  controls[controlName].addEventListener('input', () => {
-    setActualControlValue(controlName, Number(controls[controlName].value));
-  });
-});
-Object.keys(zoomBehaviorToggleDefaults).forEach((controlName) => {
-  controls[controlName].addEventListener('change', () => {
-    zoomBehaviorToggles[controlName] = controls[controlName].checked;
-    resetZoomBehaviorTimers(controlName === 'modelCycleEnabled' ? 'max' : 'min');
-    if (controlName === 'modelCycleEnabled' && !zoomBehaviorToggles.modelCycleEnabled) {
-      cancelAutomaticModelSwitch();
-    }
-    if (!zoomBehaviorToggles.proximityRotationEnabled) beginRotationReturn();
-    updateZoomBehaviorControls();
-  });
-});
 controls.connectSensor.addEventListener('click', toggleSerialConnection);
 controls.sensorZoomEnabled.addEventListener('change', updateSensorZoomMode);
 if (serialSupported) {
@@ -547,11 +496,6 @@ controls.reset.addEventListener('click', () => {
   Object.assign(dofSettings, dofSettingDefaults);
   Object.assign(modelRotationSettings, modelRotationDefaults);
   Object.assign(modelPositionSettings, modelPositionDefaults);
-  Object.assign(zoomBehaviorSettings, zoomBehaviorDefaults);
-  Object.assign(zoomBehaviorToggles, zoomBehaviorToggleDefaults);
-  cancelAutomaticModelSwitch();
-  resetZoomBehaviorTimers();
-  resetAnimatedRotation();
   sensorZoomSettings.sensitivity = sensorZoomDefaults.sensitivity;
   sensorZoomSettings.zoomOutHoldMs = sensorZoomDefaults.zoomOutHoldMs;
   Object.values(cameraZoomControls).forEach((settingName) => {
@@ -573,7 +517,6 @@ controls.reset.addEventListener('click', () => {
   updateSensorCalibrationControl();
   updateSensorSpeedControls();
   updateSensorDelayControl();
-  updateZoomBehaviorControls();
   updateDof();
   controls.settingsStatus.textContent = 'Default controls restored';
 });
@@ -586,7 +529,6 @@ updateModelPositionControls();
 updateSensorCalibrationControl();
 updateSensorSpeedControls();
 updateSensorDelayControl();
-updateZoomBehaviorControls();
 updateCameraZoomLimits();
 updateDof();
 updateSensorZoomMode();
@@ -597,11 +539,6 @@ switchModel(startupModelKey);
 
 canvas.addEventListener('pointerdown', onPointerDown);
 document.addEventListener('keydown', onDocumentKeyDown);
-// Hidden tabs pause the experience instead of expiring timers or jumping ahead on return.
-document.addEventListener('visibilitychange', () => {
-  previousFrameTime = performance.now();
-  resetZoomBehaviorTimers();
-});
 
 // Check serial health independently of the render loop, including when the page becomes visible.
 if (serialSupported) {
@@ -623,7 +560,6 @@ function collectSettingsPreset() {
     schemaVersion: 1,
     model: activeModelKey || requestedModelKey,
     dofEnabled: controls.enabled.checked,
-    zoomBehaviors: { ...zoomBehaviorToggles },
     controls: Object.fromEntries(editableControls.map((name) => [name, getActualControlValue(name)])),
     camera: {
       position: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
@@ -663,14 +599,7 @@ function validateSettingsPreset(preset) {
     throw new Error('Unsupported settings format or model');
   }
   for (const name of editableControls) {
-    // Older published files do not contain zoom-event controls; use their code defaults.
-    if (Object.hasOwn(zoomBehaviorDefaults, name) && preset.controls?.[name] === undefined) continue;
     if (!Number.isFinite(preset.controls?.[name])) throw new Error(`Invalid setting: ${name}`);
-  }
-  if (preset.zoomBehaviors !== undefined) {
-    for (const name of Object.keys(zoomBehaviorToggleDefaults)) {
-      if (typeof preset.zoomBehaviors?.[name] !== 'boolean') throw new Error(`Invalid toggle: ${name}`);
-    }
   }
   for (const vector of ['position', 'target']) {
     for (const axis of ['x', 'y', 'z']) {
@@ -694,15 +623,9 @@ function validateSettingsPreset(preset) {
 function applySettingsPreset(preset) {
   validateSettingsPreset(preset);
   TWEEN.removeAll();
-  cancelAutomaticModelSwitch();
-  resetZoomBehaviorTimers();
-  resetAnimatedRotation();
-  Object.assign(zoomBehaviorToggles, preset.zoomBehaviors ?? zoomBehaviorToggleDefaults);
   controls.enabled.checked = preset.dofEnabled;
   for (const name of editableControls) {
-    if (!Object.hasOwn(targetControlAxes, name)) {
-      setActualControlValue(name, preset.controls[name] ?? zoomBehaviorDefaults[name]);
-    }
+    if (!Object.hasOwn(targetControlAxes, name)) setActualControlValue(name, preset.controls[name]);
   }
   // Moving the model also moves focus, so restore the exact saved target last.
   for (const name of Object.keys(targetControlAxes)) {
@@ -715,7 +638,6 @@ function applySettingsPreset(preset) {
   updateCameraPositionControls();
   updateFocusUniform();
   updateDof();
-  updateZoomBehaviorControls();
 }
 
 // PUBLISHED PRESET: Read beside main.js (also works under a GitHub Pages repository path).
@@ -749,213 +671,15 @@ async function loadPublishedSettings() {
 // FRAME LOOP: Update motion, live readouts, and focus before drawing the scene.
 function animate() {
   const now = performance.now();
-  const elapsedSeconds = Math.max(0, (now - previousFrameTime) / 1000);
-  const deltaSeconds = Math.min(elapsedSeconds, 0.1);
+  const deltaSeconds = Math.min((now - previousFrameTime) / 1000, 0.1);
   previousFrameTime = now;
 
   TWEEN.update();
   applySensorZoom(now, deltaSeconds);
   cameraControls.update();
-  updateZoomBehaviors(elapsedSeconds, deltaSeconds);
   updateCameraPositionControls();
   updateFocusUniform();
   composer.render();
-}
-
-// SETTINGS UI: Reuse the existing slider, manual-entry, toggle, and collapsible styles.
-function createZoomBehaviorControls() {
-  const sliders = {
-    modelSwitchDelay: ['switch delay', 1, 120, 1],
-    rotationDelay: ['rotation delay', 0, 15, 0.1],
-    rotationSpeed: ['rotation speed', 0, 30, 0.5],
-    rotationAxisX: ['x rotation', -1, 1, 0.05],
-    rotationAxisY: ['y rotation', -1, 1, 0.05],
-    rotationAxisZ: ['z rotation', -1, 1, 0.05]
-  };
-  const groups = [
-    ['Model Cycle', 'modelCycleEnabled', 'at max distance', 'modelCycleStatus', ['modelSwitchDelay']],
-    ['Proximity Rotation', 'proximityRotationEnabled', 'at min distance', 'proximityRotationStatus',
-      ['rotationDelay', 'rotationSpeed', 'rotationAxisX', 'rotationAxisY', 'rotationAxisZ']]
-  ];
-  let previousGroup = document.querySelector('#cameraMaxDistance').closest('details');
-  const inputs = {};
-  for (const [title, toggle, label, status, names] of groups) {
-    const group = document.createElement('details');
-    group.className = 'settings-group';
-    group.open = true;
-    group.innerHTML = `
-      <summary>${title}</summary>
-      <div class="sensor-mode">
-        <span>${label}</span>
-        <label class="toggle">
-          <input id="${toggle}" type="checkbox" role="switch" aria-label="Enable ${title}">
-          <span id="${toggle}State">On</span>
-        </label>
-      </div>
-      ${names.map((name) => {
-        const [text, min, max, step] = sliders[name];
-        return `
-          <label class="control" for="${name}">
-            <span>${text}
-              <output id="${name}Value" class="editable-value" for="${name}" data-control="${name}" tabindex="0" aria-label="Set ${text} manually"></output>
-            </span>
-            <input id="${name}" type="range" min="${min}" max="${max}" step="${step}" value="${zoomBehaviorDefaults[name]}">
-          </label>`;
-      }).join('')}
-      <p class="target sensor-status">
-        <span>status</span><output id="${status}" aria-live="off"></output>
-      </p>`;
-    previousGroup.after(group);
-    previousGroup = group;
-    for (const id of [toggle, `${toggle}State`, status, ...names.flatMap((name) => [name, `${name}Value`])]) {
-      inputs[id] = document.querySelector(`#${id}`);
-    }
-  }
-  return inputs;
-}
-
-// Refresh stored event settings; live animation never overwrites the manual starting rotation.
-function updateZoomBehaviorControls() {
-  for (const [name, value] of Object.entries(zoomBehaviorSettings)) {
-    const unit = name.endsWith('Delay') ? ' s' : name === 'rotationSpeed' ? ' deg/s' : 'x';
-    controls[name].value = getSliderPosition(controls[name], value);
-    controls[`${name}Value`].value = `${formatCompactValue(value)}${unit}`;
-  }
-  for (const [name, enabled] of Object.entries(zoomBehaviorToggles)) {
-    controls[name].checked = enabled;
-    controls[`${name}State`].textContent = enabled ? 'On' : 'Off';
-  }
-  updateZoomBehaviorReadouts();
-}
-
-// Show countdowns and activity without repeatedly announcing per-frame changes to screen readers.
-function updateZoomBehaviorReadouts() {
-  const state = zoomBehaviorState;
-  let cycle = 'Waiting for max';
-  let rotation = 'Waiting for min';
-  if (!zoomBehaviorToggles.modelCycleEnabled) cycle = 'Off';
-  else if (modelLoading) cycle = 'Loading model';
-  else if (Object.keys(modelAssets).length < 2) cycle = 'Single model';
-  else if (state.atMax) cycle = `${Math.max(0, zoomBehaviorSettings.modelSwitchDelay - state.maxElapsed).toFixed(1)} s`;
-  if (state.rotationPhase === 'returning') rotation = 'Returning to start';
-  else if (!zoomBehaviorToggles.proximityRotationEnabled) rotation = 'Off';
-  else if (modelLoading) rotation = 'Loading model';
-  else if (state.rotationPhase === 'rotating') rotation = 'Rotating';
-  else if (state.atMin) rotation = `${Math.max(0, zoomBehaviorSettings.rotationDelay - state.minElapsed).toFixed(1)} s`;
-  if (controls.modelCycleStatus.value !== cycle) controls.modelCycleStatus.value = cycle;
-  if (controls.proximityRotationStatus.value !== rotation) controls.proximityRotationStatus.value = rotation;
-}
-
-// Restart one or both arrival countdowns without interrupting an already-active rotation.
-function resetZoomBehaviorTimers(boundary = 'both') {
-  if (boundary !== 'min') {
-    zoomBehaviorState.atMax = false;
-    zoomBehaviorState.maxElapsed = 0;
-  }
-  if (boundary !== 'max') {
-    zoomBehaviorState.atMin = false;
-    zoomBehaviorState.minElapsed = 0;
-  }
-}
-
-// Reset only the animation offset, preserving the user's model position and starting angles.
-function resetAnimatedRotation() {
-  zoomBehaviorState.rotationOffset.identity();
-  zoomBehaviorState.rotationPhase = 'idle';
-  zoomBehaviorState.returnElapsed = 0;
-  applyModelRotation();
-}
-
-// Capture the current orientation for a smooth, shortest-path return to the starting angles.
-// Reference: https://threejs.org/docs/pages/Quaternion.html#slerpQuaternions
-function beginRotationReturn() {
-  const state = zoomBehaviorState;
-  if (state.rotationPhase !== 'rotating') return;
-  state.returnFrom.copy(state.rotationOffset);
-  state.returnElapsed = 0;
-  state.rotationPhase = 'returning';
-  state.minElapsed = 0;
-}
-
-// Cancel only an automatic load; keyboard selections always retain priority.
-function cancelAutomaticModelSwitch() {
-  if (!automaticModelRequest) return;
-  modelRequestId++;
-  automaticModelRequest = false;
-  modelLoading = false;
-  requestedModelKey = activeModelKey || '1';
-  controls.targetValue.value = `${getActiveModelLabel()} focus`;
-}
-
-// Follow the registry order, including future entries; a failed asset cannot trap the queue.
-function advanceModelQueue() {
-  const keys = Object.keys(modelAssets);
-  if (keys.length < 2) return;
-  const index = keys.indexOf(requestedModelKey);
-  void switchModel(keys[(index + 1) % keys.length], { automatic: true });
-}
-
-// ZOOM EVENTS: Use the same camera-to-orbit-target distance for mouse and sensor input.
-// Reference: https://threejs.org/docs/pages/OrbitControls.html#getDistance
-function updateZoomBehaviors(elapsedSeconds, deltaSeconds) {
-  if (document.hidden) return;
-  const state = zoomBehaviorState;
-  if (!modelLoaded || modelLoading) {
-    resetZoomBehaviorTimers();
-    updateZoomBehaviorReadouts();
-    return;
-  }
-  const min = cameraControls.minDistance;
-  const max = cameraControls.maxDistance;
-  const distance = cameraControls.getDistance();
-  const span = max - min;
-  const tolerance = Math.min(zoomArrivalTolerance, span * 0.05);
-  const wasAtMax = state.atMax;
-  const wasAtMin = state.atMin;
-  // Slight hysteresis avoids restarting a timer because of tiny eased-motion fluctuations.
-  state.atMax = span > 0 && distance >= max - tolerance * (wasAtMax ? 2 : 1);
-  state.atMin = span > 0 && distance <= min + tolerance * (wasAtMin ? 2 : 1);
-
-  if (zoomBehaviorToggles.modelCycleEnabled && state.atMax && Object.keys(modelAssets).length > 1) {
-    state.maxElapsed += wasAtMax ? elapsedSeconds : 0;
-    if (state.maxElapsed >= zoomBehaviorSettings.modelSwitchDelay) {
-      advanceModelQueue();
-      updateZoomBehaviorReadouts();
-      return;
-    }
-  } else state.maxElapsed = 0;
-
-  let rotationDelta = deltaSeconds;
-  if (!zoomBehaviorToggles.proximityRotationEnabled || span <= 0 || distance >= min + span / 2) {
-    state.minElapsed = 0;
-    beginRotationReturn();
-  } else if (state.rotationPhase === 'idle' && state.atMin) {
-    state.minElapsed += wasAtMin ? elapsedSeconds : 0;
-    if (state.minElapsed >= zoomBehaviorSettings.rotationDelay) {
-      state.rotationPhase = 'rotating';
-      rotationDelta = Math.min(deltaSeconds, state.minElapsed - zoomBehaviorSettings.rotationDelay);
-    }
-  } else if (!state.atMin) state.minElapsed = 0;
-
-  if (state.rotationPhase === 'rotating') {
-    rotationAxis.set(zoomBehaviorSettings.rotationAxisX, zoomBehaviorSettings.rotationAxisY, zoomBehaviorSettings.rotationAxisZ);
-    const amount = Math.hypot(rotationAxis.x, rotationAxis.y, rotationAxis.z);
-    const angle = THREE.MathUtils.degToRad(zoomBehaviorSettings.rotationSpeed) * amount * rotationDelta;
-    if (amount > 0 && Number.isFinite(angle)) {
-      rotationAxis.divideScalar(amount);
-      rotationStep.setFromAxisAngle(rotationAxis, angle % (Math.PI * 2));
-      state.rotationOffset.multiply(rotationStep).normalize();
-      applyModelRotation();
-    }
-  } else if (state.rotationPhase === 'returning') {
-    state.returnElapsed += deltaSeconds;
-    const progress = Math.min(1, state.returnElapsed / rotationReturnSeconds);
-    const eased = progress * progress * (3 - 2 * progress);
-    state.rotationOffset.slerpQuaternions(state.returnFrom, rotationIdentity, eased);
-    if (progress === 1) resetAnimatedRotation();
-    else applyModelRotation();
-  }
-  updateZoomBehaviorReadouts();
 }
 
 // Show the camera's current world X/Y/Z coordinates to two decimal places.
@@ -1344,7 +1068,7 @@ function onPointerDown(event) {
   }
 }
 
-// Handle registered model keys and H for settings; leave text and numeric editing alone.
+// Handle model keys (1/2/3) and H for settings; leave text and numeric editing alone.
 function onDocumentKeyDown(event) {
   const activeElement = document.activeElement;
   const activeTag = activeElement?.tagName.toLowerCase();
@@ -1494,7 +1218,6 @@ function updateSensorDelayControl() {
 
 // ZOOM LIMITS: Apply shared sensor/mouse distance bounds and refresh camera readouts.
 function updateCameraZoomLimits() {
-  resetZoomBehaviorTimers();
   cameraControls.minDistance = sensorZoomSettings.nearCameraDistance;
   cameraControls.maxDistance = sensorZoomSettings.farCameraDistance;
   // Manual values can exceed the sliders; keep distant models inside the clipping plane.
@@ -1566,7 +1289,6 @@ function parseManualValue(value) {
 function getActualControlValue(controlName) {
   const targetAxis = targetControlAxes[controlName];
 
-  if (Object.hasOwn(zoomBehaviorSettings, controlName)) return zoomBehaviorSettings[controlName];
   if (targetAxis) return focusPoint[targetAxis];
   if (controlName === 'sensorSensitivity') return sensorZoomSettings.sensitivity;
   if (controlName === 'zoomOutDelay') return sensorZoomSettings.zoomOutHoldMs / 1000;
@@ -1584,17 +1306,6 @@ function getActualControlValue(controlName) {
 // Camera limits stay positive and ordered; other manual values can exceed slider ranges.
 function setActualControlValue(controlName, value) {
   const targetAxis = targetControlAxes[controlName];
-
-  if (Object.hasOwn(zoomBehaviorSettings, controlName)) {
-    // Delays stay nonnegative; the short cycle floor prevents an immediate loading loop.
-    if (controlName === 'modelSwitchDelay') value = Math.max(0.1, value);
-    if (controlName === 'rotationDelay') value = Math.max(0, value);
-    zoomBehaviorSettings[controlName] = value;
-    if (controlName === 'modelSwitchDelay') resetZoomBehaviorTimers('max');
-    if (controlName === 'rotationDelay') resetZoomBehaviorTimers('min');
-    updateZoomBehaviorControls();
-    return;
-  }
 
   if (Object.prototype.hasOwnProperty.call(cameraZoomControls, controlName)) {
     const distance = Math.max(camera.near * 2, value);
@@ -1661,15 +1372,13 @@ function isModelRotationControl(controlName) {
   return Object.prototype.hasOwnProperty.call(modelRotationControlAxes, controlName);
 }
 
-// Apply the manual starting angles plus a separate, temporary animation offset.
+// Convert degree settings to radians on the shared container, preserving rotation on swaps.
 function applyModelRotation() {
   modelRoot.rotation.set(
     THREE.MathUtils.degToRad(modelRotationSettings.modelRotationX),
     THREE.MathUtils.degToRad(modelRotationSettings.modelRotationY),
     THREE.MathUtils.degToRad(modelRotationSettings.modelRotationZ)
   );
-  modelRoot.quaternion.multiply(zoomBehaviorState.rotationOffset);
-  modelRoot.updateMatrixWorld(true);
 }
 
 // Move the model container and focus point together, then refresh focus-target bounds.
@@ -1780,21 +1489,15 @@ function loadModel(key) {
 
 // MODEL SWITCHING: Show only the requested model while retaining shared scene settings.
 // Keep the current model visible during loading; ignore results from superseded requests.
-async function switchModel(key, { automatic = false } = {}) {
+async function switchModel(key) {
   if (!Object.prototype.hasOwnProperty.call(modelAssets, key)) return;
 
   const requestId = ++modelRequestId;
   requestedModelKey = key;
-  automaticModelRequest = automatic;
-  modelLoading = false;
-  resetZoomBehaviorTimers();
   if (activeModelKey === key) {
-    automaticModelRequest = false;
-    resetAnimatedRotation();
     controls.targetValue.value = `${getActiveModelLabel()} focus`;
     return;
   }
-  modelLoading = true;
   controls.targetValue.value = `loading ${modelAssets[key].label}`;
 
   try {
@@ -1804,7 +1507,6 @@ async function switchModel(key, { automatic = false } = {}) {
 
     modelRoot.clear();
     modelRoot.add(model);
-    resetAnimatedRotation();
     modelRoot.updateMatrixWorld(true);
     activeModelKey = key;
     modelLoaded = true;
@@ -1821,13 +1523,6 @@ async function switchModel(key, { automatic = false } = {}) {
     if (requestId !== modelRequestId) return;
     controls.targetValue.value = `${modelAssets[key].label} load failed`;
     console.error(`Unable to load ${modelAssets[key].url}`, error);
-  } finally {
-    if (requestId === modelRequestId) {
-      modelLoading = false;
-      automaticModelRequest = false;
-      resetZoomBehaviorTimers();
-      updateZoomBehaviorReadouts();
-    }
   }
 }
 
