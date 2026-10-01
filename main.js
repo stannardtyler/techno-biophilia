@@ -1,11 +1,11 @@
-import * as THREE from 'three';
-import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
-import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { Pass, FullScreenQuad } from 'three/addons/postprocessing/Pass.js';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import TWEEN from 'three/addons/libs/tween.module.js';
+import * as THREE from "three";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { Pass, FullScreenQuad } from "three/addons/postprocessing/Pass.js";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import TWEEN from "three/addons/libs/tween.module.js";
 
 // DOF RENDERING: Custom postprocessing pass that blends sharp and blurred pixels by depth.
 class SimpleDepthOfFieldPass extends Pass {
@@ -24,7 +24,7 @@ class SimpleDepthOfFieldPass extends Pass {
       blurSize: { value: params.blurSize },
       blurSpread: { value: params.blurSpread },
       cameraNear: { value: camera.near },
-      cameraFar: { value: camera.far }
+      cameraFar: { value: camera.far },
     };
 
     this.material = new THREE.ShaderMaterial({
@@ -91,7 +91,7 @@ class SimpleDepthOfFieldPass extends Pass {
 
           gl_FragColor = mix(sharp, blurred, blurAmount);
         }
-      `
+      `,
     });
     this.fsQuad = new FullScreenQuad(this.material);
   }
@@ -121,7 +121,7 @@ class SimpleDepthOfFieldPass extends Pass {
 }
 
 // SCENE SETUP: Camera, mouse controls, lighting, and the shared model container.
-const canvas = document.querySelector('#c');
+const canvas = document.querySelector("#c");
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
 
@@ -129,7 +129,7 @@ const camera = new THREE.PerspectiveCamera(
   45,
   window.innerWidth / window.innerHeight,
   0.1,
-  100
+  100,
 );
 camera.position.set(5, 4, 10);
 camera.lookAt(0, 0, 0);
@@ -150,14 +150,14 @@ cameraControls.update();
 const modelRoot = new THREE.Group();
 // MODEL QUEUE: Add a key/file entry here for both keyboard selection and automatic cycling.
 const modelAssets = {
-  '1': { url: './treeScan.glb', label: 'tree scan' },
-  '2': { url: './treeHole.glb', label: 'tree hole' },
-  '3': { url: './anotherTreeScan.glb', label: 'another tree scan' },
-  '4': { url: './percaderoRock.glb', label: 'percadero rock' }
+  1: { url: "./treeScan.glb", label: "tree scan" },
+  2: { url: "./treeHole.glb", label: "tree hole" },
+  3: { url: "./anotherTreeScan.glb", label: "another tree scan" },
+  4: { url: "./percaderoRock.glb", label: "percadero rock" },
 };
 const modelCache = new Map();
 let activeModelKey = null;
-let requestedModelKey = '1';
+let requestedModelKey = "1";
 let modelRequestId = 0;
 let modelLoading = false;
 let automaticModelRequest = false;
@@ -173,13 +173,13 @@ cameraControls.update();
 const modelPositionDefaults = {
   modelPositionX: modelCenterPosition.x,
   modelPositionY: modelCenterPosition.y,
-  modelPositionZ: modelCenterPosition.z
+  modelPositionZ: modelCenterPosition.z,
 };
 const modelPositionSettings = { ...modelPositionDefaults };
 const modelRotationDefaults = {
   modelRotationX: 0,
   modelRotationY: 0,
-  modelRotationZ: 0
+  modelRotationZ: 0,
 };
 const modelRotationSettings = { ...modelRotationDefaults };
 // ZOOM EVENTS: Delays are seconds; speed is degrees/second, multiplied by each signed axis amount.
@@ -189,20 +189,23 @@ const zoomBehaviorDefaults = {
   rotationSpeed: 6,
   rotationAxisX: 0,
   rotationAxisY: 1,
-  rotationAxisZ: 0
+  rotationAxisZ: 0,
 };
 const zoomBehaviorSettings = { ...zoomBehaviorDefaults };
-const zoomBehaviorToggleDefaults = { modelCycleEnabled: true, proximityRotationEnabled: true };
+const zoomBehaviorToggleDefaults = {
+  modelCycleEnabled: true,
+  proximityRotationEnabled: true,
+};
 const zoomBehaviorToggles = { ...zoomBehaviorToggleDefaults };
 const zoomBehaviorState = {
   atMax: false,
   atMin: false,
   maxElapsed: 0,
   minElapsed: 0,
-  rotationPhase: 'idle',
+  rotationPhase: "idle",
   rotationOffset: new THREE.Quaternion(),
   returnFrom: new THREE.Quaternion(),
-  returnElapsed: 0
+  returnElapsed: 0,
 };
 // A small arrival tolerance accommodates the sensor's eased zoom; return time is independently editable.
 const zoomArrivalTolerance = 0.02;
@@ -215,7 +218,7 @@ const dofSettingDefaults = {
   minDistance: 1,
   maxDistance: 3,
   blurSize: 2,
-  blurSpread: 4
+  blurSpread: 4,
 };
 // ZOOM-BASED BLUR: Adjust how much blur changes between near and far focus distances.
 const cameraDistanceBlurSettings = {
@@ -223,7 +226,7 @@ const cameraDistanceBlurSettings = {
   nearFocusDistance: 3,
   farFocusDistance: 12,
   nearBlurMultiplier: 0.35,
-  farBlurMultiplier: 1.8
+  farBlurMultiplier: 1.8,
 };
 // SENSOR DEFAULTS: Sensor distances are centimeters; camera distances are Three.js scene units.
 // Values beyond nearCm/farCm hold the corresponding camera distance.
@@ -242,17 +245,17 @@ const sensorZoomDefaults = {
   zoomOutHoldMs: 3000,
   zoomOutSmoothingSeconds: 3.5,
   maxZoomSpeed: 3, // Maximum camera movement in scene units per second.
-  staleAfterMs: 1000
+  staleAfterMs: 1000,
 };
 const sensorZoomSettings = { ...sensorZoomDefaults };
 let zoomOutStartedAt = null;
 let smoothedSensorTarget = null;
-const serialSupported = window.isSecureContext && 'serial' in navigator;
+const serialSupported = window.isSecureContext && "serial" in navigator;
 // SERIAL RECOVERY: Times are milliseconds. Silence triggers a restart, not an unchanged distance.
 const serialRecoverySettings = {
   checkIntervalMs: 500,
   silentAfterMs: 5000,
-  retryDelaysMs: [0, 2000, 5000, 10000, 30000]
+  retryDelaysMs: [0, 2000, 5000, 10000, 30000],
 };
 const serialState = {
   selectedPort: null,
@@ -271,7 +274,9 @@ const serialState = {
   distanceCm: null,
   openedAt: 0,
   lastReadingAt: null,
-  status: serialSupported ? 'Disconnected' : 'Use Chrome or Edge on localhost or HTTPS'
+  status: serialSupported
+    ? "Disconnected"
+    : "Use Chrome or Edge on localhost or HTTPS",
 };
 const sensorCameraOffset = new THREE.Vector3();
 let previousFrameTime = performance.now();
@@ -291,8 +296,14 @@ const reusableWorldPosition = new THREE.Vector3();
 let modelLoaded = false;
 let focusPoint = initialFocusPoint.clone();
 
-const renderTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight);
-renderTarget.depthTexture = new THREE.DepthTexture(window.innerWidth, window.innerHeight);
+const renderTarget = new THREE.WebGLRenderTarget(
+  window.innerWidth,
+  window.innerHeight,
+);
+renderTarget.depthTexture = new THREE.DepthTexture(
+  window.innerWidth,
+  window.innerHeight,
+);
 renderTarget.depthTexture.type = THREE.UnsignedShortType;
 
 const composer = new EffectComposer(renderer, renderTarget);
@@ -301,7 +312,7 @@ const dofSettings = { ...dofSettingDefaults };
 
 const dofDefaults = {
   focus: getFocusDistance(focusPoint),
-  ...dofSettingDefaults
+  ...dofSettingDefaults,
 };
 
 const dofPass = new SimpleDepthOfFieldPass(camera, dofDefaults);
@@ -312,9 +323,9 @@ composer.setSize(window.innerWidth, window.innerHeight);
 const gltfLoader = new GLTFLoader();
 
 // Keep sensor calibration UI and behavior entirely on the JavaScript side.
-const sensorCalibrationControl = document.createElement('label');
-sensorCalibrationControl.className = 'control';
-sensorCalibrationControl.htmlFor = 'sensorSensitivity';
+const sensorCalibrationControl = document.createElement("label");
+sensorCalibrationControl.className = "control";
+sensorCalibrationControl.htmlFor = "sensorSensitivity";
 sensorCalibrationControl.innerHTML = `
   <span>
     sensitivity
@@ -322,10 +333,10 @@ sensorCalibrationControl.innerHTML = `
   </span>
   <input id="sensorSensitivity" type="range" min="0.25" max="3" step="0.05" value="1">
 `;
-document.querySelector('#sensorSettings').append(sensorCalibrationControl);
+document.querySelector("#sensorSettings").append(sensorCalibrationControl);
 
 // Keep the connection diagnostics in main.js, using the existing settings layout.
-const sensorDiagnostics = document.createElement('div');
+const sensorDiagnostics = document.createElement("div");
 sensorDiagnostics.innerHTML = `
   <p class="target">
     <span>last message</span>
@@ -336,115 +347,115 @@ sensorDiagnostics.innerHTML = `
     <output id="sensorReconnectValue" aria-live="off">0</output>
   </p>
 `;
-document.querySelector('#sensorSettings').append(sensorDiagnostics);
+document.querySelector("#sensorSettings").append(sensorDiagnostics);
 
 // Build the new collapsible groups here so index.html and style.css remain unchanged.
 const zoomBehaviorInputs = createZoomBehaviorControls();
 const controls = {
   ...zoomBehaviorInputs,
-  panel: document.querySelector('.settings'),
-  sensorZoomEnabled: document.querySelector('#sensorZoomEnabled'),
-  sensorZoomState: document.querySelector('#sensorZoomState'),
-  sensorStatus: document.querySelector('#sensorStatus'),
-  sensorDistanceValue: document.querySelector('#sensorDistanceValue'),
-  sensorLastMessageValue: document.querySelector('#sensorLastMessageValue'),
-  sensorReconnectValue: document.querySelector('#sensorReconnectValue'),
-  connectSensor: document.querySelector('#connectSensor'),
-  sensorSensitivity: document.querySelector('#sensorSensitivity'),
-  sensorSensitivityValue: document.querySelector('#sensorSensitivityValue'),
-  zoomInSpeed: document.querySelector('#zoomInSpeed'),
-  zoomInSpeedValue: document.querySelector('#zoomInSpeedValue'),
-  zoomOutSpeed: document.querySelector('#zoomOutSpeed'),
-  zoomOutSpeedValue: document.querySelector('#zoomOutSpeedValue'),
-  zoomOutDelay: document.querySelector('#zoomOutDelay'),
-  zoomOutDelayValue: document.querySelector('#zoomOutDelayValue'),
-  cameraXValue: document.querySelector('#cameraXValue'),
-  cameraYValue: document.querySelector('#cameraYValue'),
-  cameraZValue: document.querySelector('#cameraZValue'),
-  cameraMinDistance: document.querySelector('#cameraMinDistance'),
-  cameraMinDistanceValue: document.querySelector('#cameraMinDistanceValue'),
-  cameraMaxDistance: document.querySelector('#cameraMaxDistance'),
-  cameraMaxDistanceValue: document.querySelector('#cameraMaxDistanceValue'),
-  enabled: document.querySelector('#dofEnabled'),
-  state: document.querySelector('#dofState'),
-  minDistance: document.querySelector('#minDistance'),
-  minDistanceValue: document.querySelector('#minDistanceValue'),
-  maxDistance: document.querySelector('#maxDistance'),
-  maxDistanceValue: document.querySelector('#maxDistanceValue'),
-  blurSize: document.querySelector('#blurSize'),
-  blurSizeValue: document.querySelector('#blurSizeValue'),
-  blurSpread: document.querySelector('#blurSpread'),
-  blurSpreadValue: document.querySelector('#blurSpreadValue'),
-  focusValue: document.querySelector('#focusValue'),
-  targetValue: document.querySelector('#targetValue'),
-  targetX: document.querySelector('#targetX'),
-  targetXValue: document.querySelector('#targetXValue'),
-  targetY: document.querySelector('#targetY'),
-  targetYValue: document.querySelector('#targetYValue'),
-  targetZ: document.querySelector('#targetZ'),
-  targetZValue: document.querySelector('#targetZValue'),
-  modelPositionX: document.querySelector('#modelPositionX'),
-  modelPositionXValue: document.querySelector('#modelPositionXValue'),
-  modelPositionY: document.querySelector('#modelPositionY'),
-  modelPositionYValue: document.querySelector('#modelPositionYValue'),
-  modelPositionZ: document.querySelector('#modelPositionZ'),
-  modelPositionZValue: document.querySelector('#modelPositionZValue'),
-  modelRotationX: document.querySelector('#modelRotationX'),
-  modelRotationXValue: document.querySelector('#modelRotationXValue'),
-  modelRotationY: document.querySelector('#modelRotationY'),
-  modelRotationYValue: document.querySelector('#modelRotationYValue'),
-  modelRotationZ: document.querySelector('#modelRotationZ'),
-  modelRotationZValue: document.querySelector('#modelRotationZValue'),
-  valueEditor: document.querySelector('#valueEditor'),
-  valueEditorLabel: document.querySelector('#valueEditorLabel'),
-  manualValue: document.querySelector('#manualValue'),
-  cancelValueEdit: document.querySelector('#cancelValueEdit'),
-  exportSettings: document.querySelector('#exportSettings'),
-  settingsStatus: document.querySelector('#settingsStatus'),
-  reset: document.querySelector('#resetDof')
+  panel: document.querySelector(".settings"),
+  sensorZoomEnabled: document.querySelector("#sensorZoomEnabled"),
+  sensorZoomState: document.querySelector("#sensorZoomState"),
+  sensorStatus: document.querySelector("#sensorStatus"),
+  sensorDistanceValue: document.querySelector("#sensorDistanceValue"),
+  sensorLastMessageValue: document.querySelector("#sensorLastMessageValue"),
+  sensorReconnectValue: document.querySelector("#sensorReconnectValue"),
+  connectSensor: document.querySelector("#connectSensor"),
+  sensorSensitivity: document.querySelector("#sensorSensitivity"),
+  sensorSensitivityValue: document.querySelector("#sensorSensitivityValue"),
+  zoomInSpeed: document.querySelector("#zoomInSpeed"),
+  zoomInSpeedValue: document.querySelector("#zoomInSpeedValue"),
+  zoomOutSpeed: document.querySelector("#zoomOutSpeed"),
+  zoomOutSpeedValue: document.querySelector("#zoomOutSpeedValue"),
+  zoomOutDelay: document.querySelector("#zoomOutDelay"),
+  zoomOutDelayValue: document.querySelector("#zoomOutDelayValue"),
+  cameraXValue: document.querySelector("#cameraXValue"),
+  cameraYValue: document.querySelector("#cameraYValue"),
+  cameraZValue: document.querySelector("#cameraZValue"),
+  cameraMinDistance: document.querySelector("#cameraMinDistance"),
+  cameraMinDistanceValue: document.querySelector("#cameraMinDistanceValue"),
+  cameraMaxDistance: document.querySelector("#cameraMaxDistance"),
+  cameraMaxDistanceValue: document.querySelector("#cameraMaxDistanceValue"),
+  enabled: document.querySelector("#dofEnabled"),
+  state: document.querySelector("#dofState"),
+  minDistance: document.querySelector("#minDistance"),
+  minDistanceValue: document.querySelector("#minDistanceValue"),
+  maxDistance: document.querySelector("#maxDistance"),
+  maxDistanceValue: document.querySelector("#maxDistanceValue"),
+  blurSize: document.querySelector("#blurSize"),
+  blurSizeValue: document.querySelector("#blurSizeValue"),
+  blurSpread: document.querySelector("#blurSpread"),
+  blurSpreadValue: document.querySelector("#blurSpreadValue"),
+  focusValue: document.querySelector("#focusValue"),
+  targetValue: document.querySelector("#targetValue"),
+  targetX: document.querySelector("#targetX"),
+  targetXValue: document.querySelector("#targetXValue"),
+  targetY: document.querySelector("#targetY"),
+  targetYValue: document.querySelector("#targetYValue"),
+  targetZ: document.querySelector("#targetZ"),
+  targetZValue: document.querySelector("#targetZValue"),
+  modelPositionX: document.querySelector("#modelPositionX"),
+  modelPositionXValue: document.querySelector("#modelPositionXValue"),
+  modelPositionY: document.querySelector("#modelPositionY"),
+  modelPositionYValue: document.querySelector("#modelPositionYValue"),
+  modelPositionZ: document.querySelector("#modelPositionZ"),
+  modelPositionZValue: document.querySelector("#modelPositionZValue"),
+  modelRotationX: document.querySelector("#modelRotationX"),
+  modelRotationXValue: document.querySelector("#modelRotationXValue"),
+  modelRotationY: document.querySelector("#modelRotationY"),
+  modelRotationYValue: document.querySelector("#modelRotationYValue"),
+  modelRotationZ: document.querySelector("#modelRotationZ"),
+  modelRotationZValue: document.querySelector("#modelRotationZValue"),
+  valueEditor: document.querySelector("#valueEditor"),
+  valueEditorLabel: document.querySelector("#valueEditorLabel"),
+  manualValue: document.querySelector("#manualValue"),
+  cancelValueEdit: document.querySelector("#cancelValueEdit"),
+  exportSettings: document.querySelector("#exportSettings"),
+  settingsStatus: document.querySelector("#settingsStatus"),
+  reset: document.querySelector("#resetDof"),
 };
 
 const editableControls = [
-  'minDistance',
-  'maxDistance',
-  'blurSize',
-  'blurSpread',
-  'targetX',
-  'targetY',
-  'targetZ',
-  'modelPositionX',
-  'modelPositionY',
-  'modelPositionZ',
-  'sensorSensitivity',
-  'zoomInSpeed',
-  'zoomOutSpeed',
-  'zoomOutDelay',
-  'cameraMinDistance',
-  'cameraMaxDistance',
-  'modelRotationX',
-  'modelRotationY',
-  'modelRotationZ',
-  ...Object.keys(zoomBehaviorDefaults)
+  "minDistance",
+  "maxDistance",
+  "blurSize",
+  "blurSpread",
+  "targetX",
+  "targetY",
+  "targetZ",
+  "modelPositionX",
+  "modelPositionY",
+  "modelPositionZ",
+  "sensorSensitivity",
+  "zoomInSpeed",
+  "zoomOutSpeed",
+  "zoomOutDelay",
+  "cameraMinDistance",
+  "cameraMaxDistance",
+  "modelRotationX",
+  "modelRotationY",
+  "modelRotationZ",
+  ...Object.keys(zoomBehaviorDefaults),
 ];
 const targetControlAxes = {
-  targetX: 'x',
-  targetY: 'y',
-  targetZ: 'z'
+  targetX: "x",
+  targetY: "y",
+  targetZ: "z",
 };
 const modelRotationControlAxes = {
-  modelRotationX: 'x',
-  modelRotationY: 'y',
-  modelRotationZ: 'z'
+  modelRotationX: "x",
+  modelRotationY: "y",
+  modelRotationZ: "z",
 };
 const modelPositionControlAxes = {
-  modelPositionX: 'x',
-  modelPositionY: 'y',
-  modelPositionZ: 'z'
+  modelPositionX: "x",
+  modelPositionY: "y",
+  modelPositionZ: "z",
 };
-const sensorSpeedControls = ['zoomInSpeed', 'zoomOutSpeed'];
+const sensorSpeedControls = ["zoomInSpeed", "zoomOutSpeed"];
 const cameraZoomControls = {
-  cameraMinDistance: 'nearCameraDistance',
-  cameraMaxDistance: 'farCameraDistance'
+  cameraMinDistance: "nearCameraDistance",
+  cameraMaxDistance: "farCameraDistance",
 };
 let activeManualControl = null;
 
@@ -455,7 +466,7 @@ function updateDof() {
   dofPass.uniforms.maxDistance.value = dofSettings.maxDistance;
   applyCameraDistanceBlur(getFocusDistance(focusPoint));
 
-  controls.state.textContent = controls.enabled.checked ? 'On' : 'Off';
+  controls.state.textContent = controls.enabled.checked ? "On" : "Off";
   controls.minDistanceValue.value = dofSettings.minDistance.toFixed(2);
   controls.maxDistanceValue.value = dofSettings.maxDistance.toFixed(2);
   controls.blurSizeValue.value = formatCompactValue(dofSettings.blurSize);
@@ -463,82 +474,111 @@ function updateDof() {
 }
 
 // UI EVENTS: Route sliders and toggles to their setting handlers.
-controls.enabled.addEventListener('change', updateDof);
-controls.minDistance.addEventListener('input', () => updateDofSettingFromSlider('minDistance'));
-controls.maxDistance.addEventListener('input', () => updateDofSettingFromSlider('maxDistance'));
-controls.blurSize.addEventListener('input', () => updateDofSettingFromSlider('blurSize'));
-controls.blurSpread.addEventListener('input', () => updateDofSettingFromSlider('blurSpread'));
-controls.targetX.addEventListener('input', () => updateTargetAxisFromSlider('x', controls.targetX));
-controls.targetY.addEventListener('input', () => updateTargetAxisFromSlider('y', controls.targetY));
-controls.targetZ.addEventListener('input', () => updateTargetAxisFromSlider('z', controls.targetZ));
-controls.modelRotationX.addEventListener('input', () => updateModelRotationFromSlider('modelRotationX'));
-controls.modelRotationY.addEventListener('input', () => updateModelRotationFromSlider('modelRotationY'));
-controls.modelRotationZ.addEventListener('input', () => updateModelRotationFromSlider('modelRotationZ'));
+controls.enabled.addEventListener("change", updateDof);
+controls.minDistance.addEventListener("input", () =>
+  updateDofSettingFromSlider("minDistance"),
+);
+controls.maxDistance.addEventListener("input", () =>
+  updateDofSettingFromSlider("maxDistance"),
+);
+controls.blurSize.addEventListener("input", () =>
+  updateDofSettingFromSlider("blurSize"),
+);
+controls.blurSpread.addEventListener("input", () =>
+  updateDofSettingFromSlider("blurSpread"),
+);
+controls.targetX.addEventListener("input", () =>
+  updateTargetAxisFromSlider("x", controls.targetX),
+);
+controls.targetY.addEventListener("input", () =>
+  updateTargetAxisFromSlider("y", controls.targetY),
+);
+controls.targetZ.addEventListener("input", () =>
+  updateTargetAxisFromSlider("z", controls.targetZ),
+);
+controls.modelRotationX.addEventListener("input", () =>
+  updateModelRotationFromSlider("modelRotationX"),
+);
+controls.modelRotationY.addEventListener("input", () =>
+  updateModelRotationFromSlider("modelRotationY"),
+);
+controls.modelRotationZ.addEventListener("input", () =>
+  updateModelRotationFromSlider("modelRotationZ"),
+);
 Object.keys(modelPositionControlAxes).forEach((controlName) => {
-  controls[controlName].addEventListener('input', () => {
+  controls[controlName].addEventListener("input", () => {
     setActualControlValue(controlName, Number(controls[controlName].value));
   });
 });
-controls.sensorSensitivity.addEventListener('input', () => {
-  setActualControlValue('sensorSensitivity', Number(controls.sensorSensitivity.value));
+controls.sensorSensitivity.addEventListener("input", () => {
+  setActualControlValue(
+    "sensorSensitivity",
+    Number(controls.sensorSensitivity.value),
+  );
 });
 sensorSpeedControls.forEach((controlName) => {
-  controls[controlName].addEventListener('input', () => {
+  controls[controlName].addEventListener("input", () => {
     setActualControlValue(controlName, Number(controls[controlName].value));
   });
 });
-controls.zoomOutDelay.addEventListener('input', () => {
-  setActualControlValue('zoomOutDelay', Number(controls.zoomOutDelay.value));
+controls.zoomOutDelay.addEventListener("input", () => {
+  setActualControlValue("zoomOutDelay", Number(controls.zoomOutDelay.value));
 });
 Object.keys(cameraZoomControls).forEach((controlName) => {
-  controls[controlName].addEventListener('input', () => {
+  controls[controlName].addEventListener("input", () => {
     setActualControlValue(controlName, Number(controls[controlName].value));
   });
 });
 Object.keys(zoomBehaviorDefaults).forEach((controlName) => {
-  controls[controlName].addEventListener('input', () => {
+  controls[controlName].addEventListener("input", () => {
     setActualControlValue(controlName, Number(controls[controlName].value));
   });
 });
 Object.keys(zoomBehaviorToggleDefaults).forEach((controlName) => {
-  controls[controlName].addEventListener('change', () => {
+  controls[controlName].addEventListener("change", () => {
     zoomBehaviorToggles[controlName] = controls[controlName].checked;
-    resetZoomBehaviorTimers(controlName === 'modelCycleEnabled' ? 'max' : 'min');
-    if (controlName === 'modelCycleEnabled' && !zoomBehaviorToggles.modelCycleEnabled) {
+    resetZoomBehaviorTimers(
+      controlName === "modelCycleEnabled" ? "max" : "min",
+    );
+    if (
+      controlName === "modelCycleEnabled" &&
+      !zoomBehaviorToggles.modelCycleEnabled
+    ) {
       cancelAutomaticModelSwitch();
     }
     if (!zoomBehaviorToggles.proximityRotationEnabled) beginRotationReturn();
     updateZoomBehaviorControls();
   });
 });
-controls.connectSensor.addEventListener('click', toggleSerialConnection);
-controls.sensorZoomEnabled.addEventListener('change', updateSensorZoomMode);
+controls.connectSensor.addEventListener("click", toggleSerialConnection);
+controls.sensorZoomEnabled.addEventListener("change", updateSensorZoomMode);
 if (serialSupported) {
   // Device loss should recover automatically; only the Disconnect button cancels that intent.
-  navigator.serial.addEventListener('disconnect', (event) => {
-    if (event.target === serialState.selectedPort) requestSerialRestart('Device disconnected');
+  navigator.serial.addEventListener("disconnect", (event) => {
+    if (event.target === serialState.selectedPort)
+      requestSerialRestart("Device disconnected");
   });
 }
 // Make value readouts editable by mouse click or keyboard activation.
 editableControls.forEach((controlName) => {
   const output = controls[`${controlName}Value`];
 
-  output.addEventListener('click', (event) => {
+  output.addEventListener("click", (event) => {
     event.preventDefault();
     openValueEditor(controlName);
   });
-  output.addEventListener('keydown', (event) => {
-    if (event.key === 'Enter' || event.key === ' ') {
+  output.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       openValueEditor(controlName);
     }
   });
 });
-controls.valueEditor.addEventListener('submit', applyManualValue);
-controls.cancelValueEdit.addEventListener('click', closeValueEditor);
-controls.exportSettings.addEventListener('click', exportSettings);
+controls.valueEditor.addEventListener("submit", applyManualValue);
+controls.cancelValueEdit.addEventListener("click", closeValueEditor);
+controls.exportSettings.addEventListener("click", exportSettings);
 // RESET: Restore setting defaults and center focus without switching the active model.
-controls.reset.addEventListener('click', () => {
+controls.reset.addEventListener("click", () => {
   TWEEN.removeAll();
   closeValueEditor();
   controls.enabled.checked = true;
@@ -575,7 +615,7 @@ controls.reset.addEventListener('click', () => {
   updateSensorDelayControl();
   updateZoomBehaviorControls();
   updateDof();
-  controls.settingsStatus.textContent = 'Default controls restored';
+  controls.settingsStatus.textContent = "Default controls restored";
 });
 // STARTUP: Load the published JSON before enabling input or choosing the first model.
 const startupModelKey = await loadPublishedSettings();
@@ -595,10 +635,10 @@ cameraControls.enabled = true;
 controls.panel.inert = false;
 switchModel(startupModelKey);
 
-canvas.addEventListener('pointerdown', onPointerDown);
-document.addEventListener('keydown', onDocumentKeyDown);
+canvas.addEventListener("pointerdown", onPointerDown);
+document.addEventListener("keydown", onDocumentKeyDown);
 // Hidden tabs pause the experience instead of expiring timers or jumping ahead on return.
-document.addEventListener('visibilitychange', () => {
+document.addEventListener("visibilitychange", () => {
   previousFrameTime = performance.now();
   resetZoomBehaviorTimers();
 });
@@ -606,11 +646,11 @@ document.addEventListener('visibilitychange', () => {
 // Check serial health independently of the render loop, including when the page becomes visible.
 if (serialSupported) {
   setInterval(monitorSerialConnection, serialRecoverySettings.checkIntervalMs);
-  document.addEventListener('visibilitychange', monitorSerialConnection);
+  document.addEventListener("visibilitychange", monitorSerialConnection);
 }
 
 // Resize the camera view, renderer, and postprocessing buffers together.
-window.addEventListener('resize', () => {
+window.addEventListener("resize", () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
@@ -624,31 +664,41 @@ function collectSettingsPreset() {
     model: activeModelKey || requestedModelKey,
     dofEnabled: controls.enabled.checked,
     zoomBehaviors: { ...zoomBehaviorToggles },
-    controls: Object.fromEntries(editableControls.map((name) => [name, getActualControlValue(name)])),
+    controls: Object.fromEntries(
+      editableControls.map((name) => [name, getActualControlValue(name)]),
+    ),
     camera: {
-      position: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
-      target: { x: cameraControls.target.x, y: cameraControls.target.y, z: cameraControls.target.z }
-    }
+      position: {
+        x: camera.position.x,
+        y: camera.position.y,
+        z: camera.position.z,
+      },
+      target: {
+        x: cameraControls.target.x,
+        y: cameraControls.target.y,
+        z: cameraControls.target.z,
+      },
+    },
   };
 }
 
 // Download a readable settings.json; publishing still requires replacing the file in the repo.
 function exportSettings() {
   let url;
-  const link = document.createElement('a');
+  const link = document.createElement("a");
   try {
     const preset = collectSettingsPreset();
     validateSettingsPreset(preset);
     const json = `${JSON.stringify(preset, null, 2)}\n`;
-    url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
+    url = URL.createObjectURL(new Blob([json], { type: "application/json" }));
     link.href = url;
-    link.download = 'settings.json';
+    link.download = "settings.json";
     document.body.append(link);
     link.click();
-    controls.settingsStatus.textContent = 'Settings download started';
+    controls.settingsStatus.textContent = "Settings download started";
   } catch (error) {
-    controls.settingsStatus.textContent = 'Export failed';
-    console.error('Unable to export settings', error);
+    controls.settingsStatus.textContent = "Export failed";
+    console.error("Unable to export settings", error);
   } finally {
     link.remove();
     // Give the browser time to start reading the download before releasing its URL.
@@ -658,22 +708,32 @@ function exportSettings() {
 
 // Reject incomplete or invalid presets before changing any scene settings.
 function validateSettingsPreset(preset) {
-  if (preset?.schemaVersion !== 1 || typeof preset.dofEnabled !== 'boolean'
-    || typeof preset.model !== 'string' || !Object.hasOwn(modelAssets, preset.model)) {
-    throw new Error('Unsupported settings format or model');
+  if (
+    preset?.schemaVersion !== 1 ||
+    typeof preset.dofEnabled !== "boolean" ||
+    typeof preset.model !== "string" ||
+    !Object.hasOwn(modelAssets, preset.model)
+  ) {
+    throw new Error("Unsupported settings format or model");
   }
   for (const name of editableControls) {
     // Older published files do not contain zoom-event controls; use their code defaults.
-    if (Object.hasOwn(zoomBehaviorDefaults, name) && preset.controls?.[name] === undefined) continue;
-    if (!Number.isFinite(preset.controls?.[name])) throw new Error(`Invalid setting: ${name}`);
+    if (
+      Object.hasOwn(zoomBehaviorDefaults, name) &&
+      preset.controls?.[name] === undefined
+    )
+      continue;
+    if (!Number.isFinite(preset.controls?.[name]))
+      throw new Error(`Invalid setting: ${name}`);
   }
   if (preset.zoomBehaviors !== undefined) {
     for (const name of Object.keys(zoomBehaviorToggleDefaults)) {
-      if (typeof preset.zoomBehaviors?.[name] !== 'boolean') throw new Error(`Invalid toggle: ${name}`);
+      if (typeof preset.zoomBehaviors?.[name] !== "boolean")
+        throw new Error(`Invalid toggle: ${name}`);
     }
   }
-  for (const vector of ['position', 'target']) {
-    for (const axis of ['x', 'y', 'z']) {
+  for (const vector of ["position", "target"]) {
+    for (const axis of ["x", "y", "z"]) {
       if (!Number.isFinite(preset.camera?.[vector]?.[axis])) {
         throw new Error(`Invalid camera ${vector}.${axis}`);
       }
@@ -681,13 +741,22 @@ function validateSettingsPreset(preset) {
   }
   const min = preset.controls.cameraMinDistance;
   const max = preset.controls.cameraMaxDistance;
-  if (min < camera.near * 2 || max < min || !Number.isFinite(max * 1.1 + modelTargetSize)
-    || !Number.isFinite(preset.controls.zoomOutDelay * 1000)) {
-    throw new Error('Invalid camera limits or return delay');
+  if (
+    min < camera.near * 2 ||
+    max < min ||
+    !Number.isFinite(max * 1.1 + modelTargetSize) ||
+    !Number.isFinite(preset.controls.zoomOutDelay * 1000)
+  ) {
+    throw new Error("Invalid camera limits or return delay");
   }
   const { position, target } = preset.camera;
-  const distance = Math.hypot(position.x - target.x, position.y - target.y, position.z - target.z);
-  if (!Number.isFinite(distance) || distance === 0) throw new Error('Invalid camera view');
+  const distance = Math.hypot(
+    position.x - target.x,
+    position.y - target.y,
+    position.z - target.z,
+  );
+  if (!Number.isFinite(distance) || distance === 0)
+    throw new Error("Invalid camera view");
 }
 
 // Apply model transforms first, then the saved world-space focus point and camera view.
@@ -697,11 +766,17 @@ function applySettingsPreset(preset) {
   cancelAutomaticModelSwitch();
   resetZoomBehaviorTimers();
   resetAnimatedRotation();
-  Object.assign(zoomBehaviorToggles, preset.zoomBehaviors ?? zoomBehaviorToggleDefaults);
+  Object.assign(
+    zoomBehaviorToggles,
+    preset.zoomBehaviors ?? zoomBehaviorToggleDefaults,
+  );
   controls.enabled.checked = preset.dofEnabled;
   for (const name of editableControls) {
     if (!Object.hasOwn(targetControlAxes, name)) {
-      setActualControlValue(name, preset.controls[name] ?? zoomBehaviorDefaults[name]);
+      setActualControlValue(
+        name,
+        preset.controls[name] ?? zoomBehaviorDefaults[name],
+      );
     }
   }
   // Moving the model also moves focus, so restore the exact saved target last.
@@ -724,23 +799,24 @@ async function loadPublishedSettings() {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 5000);
   try {
-    const response = await fetch(new URL('./settings.json', import.meta.url), {
-      cache: 'no-store',
-      signal: controller.signal
+    const response = await fetch(new URL("./settings.json", import.meta.url), {
+      cache: "no-store",
+      signal: controller.signal,
     });
     if (response.status === 404) {
-      controls.settingsStatus.textContent = 'No preset; using defaults';
-      return '1';
+      controls.settingsStatus.textContent = "No preset; using defaults";
+      return "1";
     }
-    if (!response.ok) throw new Error(`Settings request failed: ${response.status}`);
+    if (!response.ok)
+      throw new Error(`Settings request failed: ${response.status}`);
     const preset = await response.json();
     applySettingsPreset(preset);
-    controls.settingsStatus.textContent = 'Published settings loaded';
+    controls.settingsStatus.textContent = "Published settings loaded";
     return preset.model;
   } catch (error) {
-    controls.settingsStatus.textContent = 'Preset unavailable; using defaults';
-    console.warn('Unable to load settings.json; using code defaults', error);
-    return '1';
+    controls.settingsStatus.textContent = "Preset unavailable; using defaults";
+    console.warn("Unable to load settings.json; using code defaults", error);
+    return "1";
   } finally {
     clearTimeout(timeout);
   }
@@ -765,23 +841,42 @@ function animate() {
 // SETTINGS UI: Reuse the existing slider, manual-entry, toggle, and collapsible styles.
 function createZoomBehaviorControls() {
   const sliders = {
-    modelSwitchDelay: ['switch delay', 1, 120, 1],
-    rotationDelay: ['rotation delay', 0, 15, 0.1],
-    rotationSpeed: ['rotation speed', 0, 30, 0.5],
-    rotationAxisX: ['x rotation', -1, 1, 0.05],
-    rotationAxisY: ['y rotation', -1, 1, 0.05],
-    rotationAxisZ: ['z rotation', -1, 1, 0.05]
+    modelSwitchDelay: ["switch delay", 1, 120, 1],
+    rotationDelay: ["rotation delay", 0, 15, 0.1],
+    rotationSpeed: ["rotation speed", 0, 30, 0.5],
+    rotationAxisX: ["x rotation", -1, 1, 0.05],
+    rotationAxisY: ["y rotation", -1, 1, 0.05],
+    rotationAxisZ: ["z rotation", -1, 1, 0.05],
   };
   const groups = [
-    ['Model Cycle', 'modelCycleEnabled', 'at max distance', 'modelCycleStatus', ['modelSwitchDelay']],
-    ['Proximity Rotation', 'proximityRotationEnabled', 'at min distance', 'proximityRotationStatus',
-      ['rotationDelay', 'rotationSpeed', 'rotationAxisX', 'rotationAxisY', 'rotationAxisZ']]
+    [
+      "Model Cycle",
+      "modelCycleEnabled",
+      "at max distance",
+      "modelCycleStatus",
+      ["modelSwitchDelay"],
+    ],
+    [
+      "Proximity Rotation",
+      "proximityRotationEnabled",
+      "at min distance",
+      "proximityRotationStatus",
+      [
+        "rotationDelay",
+        "rotationSpeed",
+        "rotationAxisX",
+        "rotationAxisY",
+        "rotationAxisZ",
+      ],
+    ],
   ];
-  let previousGroup = document.querySelector('#cameraMaxDistance').closest('details');
+  let previousGroup = document
+    .querySelector("#cameraMaxDistance")
+    .closest("details");
   const inputs = {};
   for (const [title, toggle, label, status, names] of groups) {
-    const group = document.createElement('details');
-    group.className = 'settings-group';
+    const group = document.createElement("details");
+    group.className = "settings-group";
     group.open = true;
     group.innerHTML = `
       <summary>${title}</summary>
@@ -792,22 +887,29 @@ function createZoomBehaviorControls() {
           <span id="${toggle}State">On</span>
         </label>
       </div>
-      ${names.map((name) => {
-        const [text, min, max, step] = sliders[name];
-        return `
+      ${names
+        .map((name) => {
+          const [text, min, max, step] = sliders[name];
+          return `
           <label class="control" for="${name}">
             <span>${text}
               <output id="${name}Value" class="editable-value" for="${name}" data-control="${name}" tabindex="0" aria-label="Set ${text} manually"></output>
             </span>
             <input id="${name}" type="range" min="${min}" max="${max}" step="${step}" value="${zoomBehaviorDefaults[name]}">
           </label>`;
-      }).join('')}
+        })
+        .join("")}
       <p class="target sensor-status">
         <span>status</span><output id="${status}" aria-live="off"></output>
       </p>`;
     previousGroup.after(group);
     previousGroup = group;
-    for (const id of [toggle, `${toggle}State`, status, ...names.flatMap((name) => [name, `${name}Value`])]) {
+    for (const id of [
+      toggle,
+      `${toggle}State`,
+      status,
+      ...names.flatMap((name) => [name, `${name}Value`]),
+    ]) {
       inputs[id] = document.querySelector(`#${id}`);
     }
   }
@@ -817,13 +919,17 @@ function createZoomBehaviorControls() {
 // Refresh stored event settings; live animation never overwrites the manual starting rotation.
 function updateZoomBehaviorControls() {
   for (const [name, value] of Object.entries(zoomBehaviorSettings)) {
-    const unit = name.endsWith('Delay') ? ' s' : name === 'rotationSpeed' ? ' deg/s' : 'x';
+    const unit = name.endsWith("Delay")
+      ? " s"
+      : name === "rotationSpeed"
+        ? " deg/s"
+        : "x";
     controls[name].value = getSliderPosition(controls[name], value);
     controls[`${name}Value`].value = `${formatCompactValue(value)}${unit}`;
   }
   for (const [name, enabled] of Object.entries(zoomBehaviorToggles)) {
     controls[name].checked = enabled;
-    controls[`${name}State`].textContent = enabled ? 'On' : 'Off';
+    controls[`${name}State`].textContent = enabled ? "On" : "Off";
   }
   updateZoomBehaviorReadouts();
 }
@@ -831,28 +937,32 @@ function updateZoomBehaviorControls() {
 // Show countdowns and activity without repeatedly announcing per-frame changes to screen readers.
 function updateZoomBehaviorReadouts() {
   const state = zoomBehaviorState;
-  let cycle = 'Waiting for max';
-  let rotation = 'Waiting for min';
-  if (!zoomBehaviorToggles.modelCycleEnabled) cycle = 'Off';
-  else if (modelLoading) cycle = 'Loading model';
-  else if (Object.keys(modelAssets).length < 2) cycle = 'Single model';
-  else if (state.atMax) cycle = `${Math.max(0, zoomBehaviorSettings.modelSwitchDelay - state.maxElapsed).toFixed(1)} s`;
-  if (state.rotationPhase === 'returning') rotation = 'Returning to start';
-  else if (!zoomBehaviorToggles.proximityRotationEnabled) rotation = 'Off';
-  else if (modelLoading) rotation = 'Loading model';
-  else if (state.rotationPhase === 'rotating') rotation = 'Rotating';
-  else if (state.atMin) rotation = `${Math.max(0, zoomBehaviorSettings.rotationDelay - state.minElapsed).toFixed(1)} s`;
-  if (controls.modelCycleStatus.value !== cycle) controls.modelCycleStatus.value = cycle;
-  if (controls.proximityRotationStatus.value !== rotation) controls.proximityRotationStatus.value = rotation;
+  let cycle = "Waiting for max";
+  let rotation = "Waiting for min";
+  if (!zoomBehaviorToggles.modelCycleEnabled) cycle = "Off";
+  else if (modelLoading) cycle = "Loading model";
+  else if (Object.keys(modelAssets).length < 2) cycle = "Single model";
+  else if (state.atMax)
+    cycle = `${Math.max(0, zoomBehaviorSettings.modelSwitchDelay - state.maxElapsed).toFixed(1)} s`;
+  if (state.rotationPhase === "returning") rotation = "Returning to start";
+  else if (!zoomBehaviorToggles.proximityRotationEnabled) rotation = "Off";
+  else if (modelLoading) rotation = "Loading model";
+  else if (state.rotationPhase === "rotating") rotation = "Rotating";
+  else if (state.atMin)
+    rotation = `${Math.max(0, zoomBehaviorSettings.rotationDelay - state.minElapsed).toFixed(1)} s`;
+  if (controls.modelCycleStatus.value !== cycle)
+    controls.modelCycleStatus.value = cycle;
+  if (controls.proximityRotationStatus.value !== rotation)
+    controls.proximityRotationStatus.value = rotation;
 }
 
 // Restart one or both arrival countdowns without interrupting an already-active rotation.
-function resetZoomBehaviorTimers(boundary = 'both') {
-  if (boundary !== 'min') {
+function resetZoomBehaviorTimers(boundary = "both") {
+  if (boundary !== "min") {
     zoomBehaviorState.atMax = false;
     zoomBehaviorState.maxElapsed = 0;
   }
-  if (boundary !== 'max') {
+  if (boundary !== "max") {
     zoomBehaviorState.atMin = false;
     zoomBehaviorState.minElapsed = 0;
   }
@@ -861,7 +971,7 @@ function resetZoomBehaviorTimers(boundary = 'both') {
 // Reset only the animation offset, preserving the user's model position and starting angles.
 function resetAnimatedRotation() {
   zoomBehaviorState.rotationOffset.identity();
-  zoomBehaviorState.rotationPhase = 'idle';
+  zoomBehaviorState.rotationPhase = "idle";
   zoomBehaviorState.returnElapsed = 0;
   applyModelRotation();
 }
@@ -870,10 +980,10 @@ function resetAnimatedRotation() {
 // Reference: https://threejs.org/docs/pages/Quaternion.html#slerpQuaternions
 function beginRotationReturn() {
   const state = zoomBehaviorState;
-  if (state.rotationPhase !== 'rotating') return;
+  if (state.rotationPhase !== "rotating") return;
   state.returnFrom.copy(state.rotationOffset);
   state.returnElapsed = 0;
-  state.rotationPhase = 'returning';
+  state.rotationPhase = "returning";
   state.minElapsed = 0;
 }
 
@@ -883,7 +993,7 @@ function cancelAutomaticModelSwitch() {
   modelRequestId++;
   automaticModelRequest = false;
   modelLoading = false;
-  requestedModelKey = activeModelKey || '1';
+  requestedModelKey = activeModelKey || "1";
   controls.targetValue.value = `${getActiveModelLabel()} focus`;
 }
 
@@ -916,7 +1026,11 @@ function updateZoomBehaviors(elapsedSeconds, deltaSeconds) {
   state.atMax = span > 0 && distance >= max - tolerance * (wasAtMax ? 2 : 1);
   state.atMin = span > 0 && distance <= min + tolerance * (wasAtMin ? 2 : 1);
 
-  if (zoomBehaviorToggles.modelCycleEnabled && state.atMax && Object.keys(modelAssets).length > 1) {
+  if (
+    zoomBehaviorToggles.modelCycleEnabled &&
+    state.atMax &&
+    Object.keys(modelAssets).length > 1
+  ) {
     state.maxElapsed += wasAtMax ? elapsedSeconds : 0;
     if (state.maxElapsed >= zoomBehaviorSettings.modelSwitchDelay) {
       advanceModelQueue();
@@ -926,32 +1040,50 @@ function updateZoomBehaviors(elapsedSeconds, deltaSeconds) {
   } else state.maxElapsed = 0;
 
   let rotationDelta = deltaSeconds;
-  if (!zoomBehaviorToggles.proximityRotationEnabled || span <= 0 || distance >= min + span / 2) {
+  if (
+    !zoomBehaviorToggles.proximityRotationEnabled ||
+    span <= 0 ||
+    distance >= min + span / 2
+  ) {
     state.minElapsed = 0;
     beginRotationReturn();
-  } else if (state.rotationPhase === 'idle' && state.atMin) {
+  } else if (state.rotationPhase === "idle" && state.atMin) {
     state.minElapsed += wasAtMin ? elapsedSeconds : 0;
     if (state.minElapsed >= zoomBehaviorSettings.rotationDelay) {
-      state.rotationPhase = 'rotating';
-      rotationDelta = Math.min(deltaSeconds, state.minElapsed - zoomBehaviorSettings.rotationDelay);
+      state.rotationPhase = "rotating";
+      rotationDelta = Math.min(
+        deltaSeconds,
+        state.minElapsed - zoomBehaviorSettings.rotationDelay,
+      );
     }
   } else if (!state.atMin) state.minElapsed = 0;
 
-  if (state.rotationPhase === 'rotating') {
-    rotationAxis.set(zoomBehaviorSettings.rotationAxisX, zoomBehaviorSettings.rotationAxisY, zoomBehaviorSettings.rotationAxisZ);
+  if (state.rotationPhase === "rotating") {
+    rotationAxis.set(
+      zoomBehaviorSettings.rotationAxisX,
+      zoomBehaviorSettings.rotationAxisY,
+      zoomBehaviorSettings.rotationAxisZ,
+    );
     const amount = Math.hypot(rotationAxis.x, rotationAxis.y, rotationAxis.z);
-    const angle = THREE.MathUtils.degToRad(zoomBehaviorSettings.rotationSpeed) * amount * rotationDelta;
+    const angle =
+      THREE.MathUtils.degToRad(zoomBehaviorSettings.rotationSpeed) *
+      amount *
+      rotationDelta;
     if (amount > 0 && Number.isFinite(angle)) {
       rotationAxis.divideScalar(amount);
       rotationStep.setFromAxisAngle(rotationAxis, angle % (Math.PI * 2));
       state.rotationOffset.multiply(rotationStep).normalize();
       applyModelRotation();
     }
-  } else if (state.rotationPhase === 'returning') {
+  } else if (state.rotationPhase === "returning") {
     state.returnElapsed += deltaSeconds;
     const progress = Math.min(1, state.returnElapsed / rotationReturnSeconds);
     const eased = progress * progress * (3 - 2 * progress);
-    state.rotationOffset.slerpQuaternions(state.returnFrom, rotationIdentity, eased);
+    state.rotationOffset.slerpQuaternions(
+      state.returnFrom,
+      rotationIdentity,
+      eased,
+    );
     if (progress === 1) resetAnimatedRotation();
     else applyModelRotation();
   }
@@ -960,7 +1092,7 @@ function updateZoomBehaviors(elapsedSeconds, deltaSeconds) {
 
 // Show the camera's current world X/Y/Z coordinates to two decimal places.
 function updateCameraPositionControls() {
-  for (const axis of ['x', 'y', 'z']) {
+  for (const axis of ["x", "y", "z"]) {
     const output = controls[`camera${axis.toUpperCase()}Value`];
     const value = camera.position[axis].toFixed(2);
     if (output.value !== value) output.value = value;
@@ -969,27 +1101,38 @@ function updateCameraPositionControls() {
 
 // Refresh connection controls, zoom mode, and the latest sensor distance in centimeters.
 function updateSensorUI() {
-  const canDisconnect = serialState.connectionWanted || serialState.port !== null;
-  controls.connectSensor.textContent = canDisconnect ? 'Disconnect Sensor'
-    : serialState.busy ? serialState.status : 'Connect Sensor';
+  const canDisconnect =
+    serialState.connectionWanted || serialState.port !== null;
+  controls.connectSensor.textContent = canDisconnect
+    ? "Disconnect Sensor"
+    : serialState.busy
+      ? serialState.status
+      : "Connect Sensor";
   // Allow an intentional disconnect even while opening or waiting to retry.
-  controls.connectSensor.disabled = !serialSupported || (!serialState.connectionWanted && serialState.busy);
+  controls.connectSensor.disabled =
+    !serialSupported || (!serialState.connectionWanted && serialState.busy);
   controls.sensorZoomEnabled.disabled = !serialState.connectionWanted;
-  controls.sensorZoomState.textContent = controls.sensorZoomEnabled.checked ? 'Sensor' : 'Mouse';
+  controls.sensorZoomState.textContent = controls.sensorZoomEnabled.checked
+    ? "Sensor"
+    : "Mouse";
   if (controls.sensorStatus.value !== serialState.status) {
     controls.sensorStatus.value = serialState.status;
   }
-  controls.sensorDistanceValue.value = serialState.distanceCm === null
-    ? '-- cm'
-    : `${serialState.distanceCm.toFixed(1)} cm`;
+  controls.sensorDistanceValue.value =
+    serialState.distanceCm === null
+      ? "-- cm"
+      : `${serialState.distanceCm.toFixed(1)} cm`;
   updateSensorDiagnostics();
 }
 
 // Show time since an actual message and total automatic reopen attempts for this connection.
 function updateSensorDiagnostics() {
-  const age = serialState.lastReadingAt === null ? '-- s'
-    : `${Math.max(0, (performance.now() - serialState.lastReadingAt) / 1000).toFixed(1)} s`;
-  if (controls.sensorLastMessageValue.value !== age) controls.sensorLastMessageValue.value = age;
+  const age =
+    serialState.lastReadingAt === null
+      ? "-- s"
+      : `${Math.max(0, (performance.now() - serialState.lastReadingAt) / 1000).toFixed(1)} s`;
+  if (controls.sensorLastMessageValue.value !== age)
+    controls.sensorLastMessageValue.value = age;
   controls.sensorReconnectValue.value = String(serialState.reconnectAttempts);
 }
 
@@ -1011,7 +1154,7 @@ async function toggleSerialConnection() {
   if (serialState.busy) return;
 
   serialState.busy = true;
-  serialState.status = 'Connecting...';
+  serialState.status = "Connecting...";
   updateSensorUI();
 
   try {
@@ -1024,10 +1167,12 @@ async function toggleSerialConnection() {
     serialState.reconnectAttempts = 0;
     serialState.readTask = runSerialConnection(port);
   } catch (error) {
-    serialState.status = error.name === 'NotFoundError'
-      ? 'Disconnected'
-      : 'Cannot connect. Close Serial Monitor and retry.';
-    if (error.name !== 'NotFoundError') console.error('Serial connection failed', error);
+    serialState.status =
+      error.name === "NotFoundError"
+        ? "Disconnected"
+        : "Cannot connect. Close Serial Monitor and retry.";
+    if (error.name !== "NotFoundError")
+      console.error("Serial connection failed", error);
   } finally {
     if (!serialState.connectionWanted) serialState.busy = false;
     updateSensorUI();
@@ -1047,7 +1192,7 @@ async function runSerialConnection(port) {
       serialState.busy = true;
       serialState.restartRequested = false;
       serialState.distanceCm = null;
-      serialState.status = retry ? 'Reconnecting...' : 'Connecting...';
+      serialState.status = retry ? "Reconnecting..." : "Connecting...";
       updateSensorUI();
       try {
         // If a prior close failed, finish it before attempting another open.
@@ -1058,20 +1203,26 @@ async function runSerialConnection(port) {
         if (!serialState.connectionWanted) break;
         serialState.openedAt = performance.now();
         serialState.busy = false;
-        serialState.status = 'Waiting for data';
+        serialState.status = "Waiting for data";
         updateSensorUI();
         await readSerialSensor(port);
       } catch (error) {
-        if (serialState.connectionWanted) console.warn('Sensor connection interrupted; retrying', error);
+        if (serialState.connectionWanted)
+          console.warn("Sensor connection interrupted; retrying", error);
       } finally {
         serialState.busy = true;
         serialState.distanceCm = null;
-        serialState.status = serialState.connectionWanted ? 'Reconnecting...' : 'Disconnecting...';
+        serialState.status = serialState.connectionWanted
+          ? "Reconnecting..."
+          : "Disconnecting...";
         updateSensorUI();
         try {
           await closeSerialPort();
         } catch (error) {
-          console.warn('Serial port close failed; will retry closing before reopening', error);
+          console.warn(
+            "Serial port close failed; will retry closing before reopening",
+            error,
+          );
         }
       }
       retry = true;
@@ -1081,7 +1232,9 @@ async function runSerialConnection(port) {
     serialState.busy = false;
     serialState.restartRequested = false;
     if (!serialState.port) serialState.selectedPort = null;
-    serialState.status = serialState.port ? 'Close failed; retry Disconnect' : 'Disconnected';
+    serialState.status = serialState.port
+      ? "Close failed; retry Disconnect"
+      : "Disconnected";
     updateSensorUI();
   }
 }
@@ -1092,7 +1245,9 @@ async function waitForSerialRetry() {
   const delay = delays[Math.min(serialState.retryAttempt++, delays.length - 1)];
   serialState.busy = false;
   serialState.nextRetryAt = performance.now() + delay;
-  serialState.status = delay ? `Retrying in ${Math.ceil(delay / 1000)} s` : 'Reconnecting...';
+  serialState.status = delay
+    ? `Retrying in ${Math.ceil(delay / 1000)} s`
+    : "Reconnecting...";
   updateSensorUI();
   if (delay === 0) return;
   await new Promise((resolve) => {
@@ -1119,7 +1274,8 @@ async function closeSerialPort() {
   try {
     await port.close();
   } catch (error) {
-    if (error.name !== 'InvalidStateError' || port.readable || port.writable) throw error;
+    if (error.name !== "InvalidStateError" || port.readable || port.writable)
+      throw error;
   }
   serialState.port = null;
 }
@@ -1127,7 +1283,7 @@ async function closeSerialPort() {
 // Read newline-separated JSON until stopped; lifecycle cleanup owns closing and reopening.
 async function readSerialSensor(port) {
   const decoder = new TextDecoder();
-  let buffer = '';
+  let buffer = "";
   let reader;
 
   try {
@@ -1136,14 +1292,15 @@ async function readSerialSensor(port) {
 
     while (serialState.connectionWanted && !serialState.restartRequested) {
       const { value, done } = await reader.read();
-      if (done || !serialState.connectionWanted || serialState.restartRequested) break;
+      if (done || !serialState.connectionWanted || serialState.restartRequested)
+        break;
 
       // USB chunks may contain part of a line or several complete readings.
       buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
+      const lines = buffer.split("\n");
       buffer = lines.pop();
       lines.forEach(handleSensorLine);
-      if (buffer.length > 4096) buffer = '';
+      if (buffer.length > 4096) buffer = "";
     }
   } finally {
     try {
@@ -1161,12 +1318,12 @@ async function cancelSerialReader() {
   if (!reader) return;
   // Share one cancellation and let closeSerialPort() wait for it to finish.
   serialState.cancelTask = reader.cancel().catch((error) => {
-    console.warn('Serial reader cancellation failed', error);
+    console.warn("Serial reader cancellation failed", error);
     // Releasing a failed reader also rejects any pending read instead of leaving it waiting.
     try {
       reader.releaseLock();
     } catch (releaseError) {
-      console.warn('Serial reader release failed', releaseError);
+      console.warn("Serial reader release failed", releaseError);
     }
   });
   try {
@@ -1182,7 +1339,7 @@ async function disconnectSerialSensor() {
   cancelSerialRetry();
   serialState.busy = true;
   serialState.distanceCm = null;
-  serialState.status = 'Disconnecting...';
+  serialState.status = "Disconnecting...";
   controls.sensorZoomEnabled.checked = false;
   updateSensorZoomMode();
   await cancelSerialReader();
@@ -1190,21 +1347,28 @@ async function disconnectSerialSensor() {
   try {
     await closeSerialPort();
   } catch (error) {
-    console.warn('Serial disconnect could not close the port', error);
+    console.warn("Serial disconnect could not close the port", error);
   } finally {
     serialState.busy = false;
     if (!serialState.port) serialState.selectedPort = null;
-    serialState.status = serialState.port ? 'Close failed; retry Disconnect' : 'Disconnected';
+    serialState.status = serialState.port
+      ? "Close failed; retry Disconnect"
+      : "Disconnected";
     updateSensorUI();
   }
 }
 
 // Ask the current read to end; the existing lifecycle task performs the restart exactly once.
 function requestSerialRestart(reason) {
-  if (!serialState.connectionWanted || serialState.busy || serialState.restartRequested) return;
+  if (
+    !serialState.connectionWanted ||
+    serialState.busy ||
+    serialState.restartRequested
+  )
+    return;
   serialState.restartRequested = true;
   serialState.distanceCm = null;
-  serialState.status = 'Reconnecting...';
+  serialState.status = "Reconnecting...";
   console.warn(`Restarting sensor serial connection: ${reason}`);
   updateSensorUI();
   void cancelSerialReader();
@@ -1215,18 +1379,32 @@ function monitorSerialConnection() {
   const now = performance.now();
   if (serialState.connectionWanted) {
     if (serialState.retryTimer !== null) {
-      const seconds = Math.max(0, Math.ceil((serialState.nextRetryAt - now) / 1000));
+      const seconds = Math.max(
+        0,
+        Math.ceil((serialState.nextRetryAt - now) / 1000),
+      );
       serialState.status = `Retrying in ${seconds} s`;
       updateSensorUI();
-    } else if (serialState.port && serialState.reader && !serialState.busy && !serialState.restartRequested) {
+    } else if (
+      serialState.port &&
+      serialState.reader &&
+      !serialState.busy &&
+      !serialState.restartRequested
+    ) {
       // Give each newly opened port a full startup window, even after a long outage.
-      const age = now - Math.max(serialState.openedAt, serialState.lastReadingAt ?? serialState.openedAt);
+      const age =
+        now -
+        Math.max(
+          serialState.openedAt,
+          serialState.lastReadingAt ?? serialState.openedAt,
+        );
       if (age > sensorZoomSettings.staleAfterMs) {
         serialState.distanceCm = null;
-        serialState.status = 'No data';
+        serialState.status = "No data";
         updateSensorUI();
       }
-      if (age >= serialRecoverySettings.silentAfterMs) requestSerialRestart('No data');
+      if (age >= serialRecoverySettings.silentAfterMs)
+        requestSerialRestart("No data");
     }
   }
   updateSensorDiagnostics();
@@ -1240,15 +1418,22 @@ function handleSensorLine(line) {
   } catch {
     return; // Ignore ESP32 startup messages and incomplete/garbled JSON.
   }
-  if (!reading || typeof reading.valid !== 'boolean'
-    || (reading.valid && !Number.isFinite(reading.cm))) return;
+  if (
+    !reading ||
+    typeof reading.valid !== "boolean" ||
+    (reading.valid && !Number.isFinite(reading.cm))
+  )
+    return;
 
   serialState.lastReadingAt = performance.now();
   serialState.retryAttempt = 0;
-  const valid = reading.valid && Number.isFinite(reading.cm)
-    && reading.cm >= 2 && reading.cm <= 400;
+  const valid =
+    reading.valid &&
+    Number.isFinite(reading.cm) &&
+    reading.cm >= 2 &&
+    reading.cm <= 400;
   serialState.distanceCm = valid ? reading.cm : null;
-  serialState.status = valid ? 'Live' : 'No valid echo';
+  serialState.status = valid ? "Live" : "No valid echo";
   updateSensorUI();
 }
 
@@ -1256,7 +1441,11 @@ function handleSensorLine(line) {
 // Outward motion uses the hold delay; missing readings request the far camera limit.
 function applySensorZoom(now, deltaSeconds) {
   // Preserve the delayed return while reconnecting; missing data always targets the far limit.
-  if (!modelLoaded || !controls.sensorZoomEnabled.checked || !serialState.connectionWanted) {
+  if (
+    !modelLoaded ||
+    !controls.sensorZoomEnabled.checked ||
+    !serialState.connectionWanted
+  ) {
     zoomOutStartedAt = null;
     smoothedSensorTarget = null;
     return;
@@ -1264,16 +1453,31 @@ function applySensorZoom(now, deltaSeconds) {
 
   const range = sensorZoomSettings.farCm - sensorZoomSettings.nearCm;
   // No echo or a silent stream requests a delayed return; unchanged valid readings remain active.
-  const rawAmount = serialState.distanceCm === null ? 1 : (range === 0 ? 0 : THREE.MathUtils.clamp(
-    (serialState.distanceCm - sensorZoomSettings.nearCm) / range, 0, 1
-  ));
-  const amount = 1 - THREE.MathUtils.clamp(
-    (1 - rawAmount) * Math.max(0, sensorZoomSettings.sensitivity), 0, 1
-  );
+  const rawAmount =
+    serialState.distanceCm === null
+      ? 1
+      : range === 0
+        ? 0
+        : THREE.MathUtils.clamp(
+            (serialState.distanceCm - sensorZoomSettings.nearCm) / range,
+            0,
+            1,
+          );
+  const amount =
+    1 -
+    THREE.MathUtils.clamp(
+      (1 - rawAmount) * Math.max(0, sensorZoomSettings.sensitivity),
+      0,
+      1,
+    );
   const targetDistance = THREE.MathUtils.clamp(
-    THREE.MathUtils.lerp(sensorZoomSettings.nearCameraDistance, sensorZoomSettings.farCameraDistance, amount),
+    THREE.MathUtils.lerp(
+      sensorZoomSettings.nearCameraDistance,
+      sensorZoomSettings.farCameraDistance,
+      amount,
+    ),
     Math.max(camera.near * 2, cameraControls.minDistance),
-    cameraControls.maxDistance
+    cameraControls.maxDistance,
   );
   sensorCameraOffset.copy(camera.position).sub(cameraControls.target);
   const currentDistance = sensorCameraOffset.length();
@@ -1296,26 +1500,43 @@ function applySensorZoom(now, deltaSeconds) {
   smoothedSensorTarget = THREE.MathUtils.clamp(
     smoothedSensorTarget,
     Math.min(currentDistance, targetDistance),
-    Math.max(currentDistance, targetDistance)
+    Math.max(currentDistance, targetDistance),
   );
   // Smooth the destination first, then ease the camera toward it each frame.
-  const speed = Math.max(0, zoomingOut ? sensorZoomSettings.zoomOutSpeed : sensorZoomSettings.zoomInSpeed);
+  const speed = Math.max(
+    0,
+    zoomingOut
+      ? sensorZoomSettings.zoomOutSpeed
+      : sensorZoomSettings.zoomInSpeed,
+  );
   const motionDelta = deltaSeconds * speed;
   if (motionDelta <= 0) return;
-  const targetBlend = sensorZoomSettings.targetSmoothingSeconds > 0
-    ? 1 - Math.exp(-motionDelta / sensorZoomSettings.targetSmoothingSeconds)
-    : 1;
-  smoothedSensorTarget = THREE.MathUtils.lerp(smoothedSensorTarget, targetDistance, targetBlend);
-  const smoothingSeconds = smoothedSensorTarget > currentDistance
-    ? sensorZoomSettings.zoomOutSmoothingSeconds
-    : sensorZoomSettings.smoothingSeconds;
-  const blend = smoothingSeconds > 0
-    ? 1 - Math.exp(-motionDelta / smoothingSeconds)
-    : 1;
-  const nextDistance = THREE.MathUtils.lerp(currentDistance, smoothedSensorTarget, blend);
+  const targetBlend =
+    sensorZoomSettings.targetSmoothingSeconds > 0
+      ? 1 - Math.exp(-motionDelta / sensorZoomSettings.targetSmoothingSeconds)
+      : 1;
+  smoothedSensorTarget = THREE.MathUtils.lerp(
+    smoothedSensorTarget,
+    targetDistance,
+    targetBlend,
+  );
+  const smoothingSeconds =
+    smoothedSensorTarget > currentDistance
+      ? sensorZoomSettings.zoomOutSmoothingSeconds
+      : sensorZoomSettings.smoothingSeconds;
+  const blend =
+    smoothingSeconds > 0 ? 1 - Math.exp(-motionDelta / smoothingSeconds) : 1;
+  const nextDistance = THREE.MathUtils.lerp(
+    currentDistance,
+    smoothedSensorTarget,
+    blend,
+  );
   const maxStep = Math.max(0, sensorZoomSettings.maxZoomSpeed) * motionDelta;
-  const distance = currentDistance + THREE.MathUtils.clamp(nextDistance - currentDistance, -maxStep, maxStep);
-  if (currentDistance === 0) camera.getWorldDirection(sensorCameraOffset).negate();
+  const distance =
+    currentDistance +
+    THREE.MathUtils.clamp(nextDistance - currentDistance, -maxStep, maxStep);
+  if (currentDistance === 0)
+    camera.getWorldDirection(sensorCameraOffset).negate();
   sensorCameraOffset.setLength(distance);
   camera.position.copy(cameraControls.target).add(sensorCameraOffset);
 }
@@ -1327,7 +1548,7 @@ function onPointerDown(event) {
   const rect = canvas.getBoundingClientRect();
   pointerCoords.set(
     ((event.clientX - rect.left) / rect.width) * 2 - 1,
-    -((event.clientY - rect.top) / rect.height) * 2 + 1
+    -((event.clientY - rect.top) / rect.height) * 2 + 1,
   );
 
   raycaster.setFromCamera(pointerCoords, camera);
@@ -1348,11 +1569,21 @@ function onPointerDown(event) {
 function onDocumentKeyDown(event) {
   const activeElement = document.activeElement;
   const activeTag = activeElement?.tagName.toLowerCase();
-  const isTyping = activeElement?.isContentEditable
-    || ['textarea', 'select'].includes(activeTag)
-    || (activeTag === 'input' && !['range', 'checkbox', 'radio'].includes(activeElement.type));
+  const isTyping =
+    activeElement?.isContentEditable ||
+    ["textarea", "select"].includes(activeTag) ||
+    (activeTag === "input" &&
+      !["range", "checkbox", "radio"].includes(activeElement.type));
 
-  if (isTyping || event.repeat || event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return;
+  if (
+    isTyping ||
+    event.repeat ||
+    event.isComposing ||
+    event.ctrlKey ||
+    event.metaKey ||
+    event.altKey
+  )
+    return;
 
   if (Object.prototype.hasOwnProperty.call(modelAssets, event.key)) {
     event.preventDefault();
@@ -1360,10 +1591,13 @@ function onDocumentKeyDown(event) {
     return;
   }
 
-  if (event.key.toLowerCase() !== 'h') return;
+  if (event.key.toLowerCase() !== "h") return;
 
-  controls.panel.classList.toggle('is-hidden');
-  controls.panel.setAttribute('aria-hidden', controls.panel.classList.contains('is-hidden'));
+  controls.panel.classList.toggle("is-hidden");
+  controls.panel.setAttribute(
+    "aria-hidden",
+    controls.panel.classList.contains("is-hidden"),
+  );
 }
 
 // Measure focus depth along the camera's view axis, not straight-line distance.
@@ -1387,22 +1621,33 @@ function updateFocusUniform() {
 function applyCameraDistanceBlur(focus) {
   const multiplier = getCameraDistanceBlurMultiplier(focus);
 
-  dofPass.uniforms.blurSize.value = Math.max(0, dofSettings.blurSize * multiplier);
-  dofPass.uniforms.blurSpread.value = Math.max(0, dofSettings.blurSpread * multiplier);
+  dofPass.uniforms.blurSize.value = Math.max(
+    0,
+    dofSettings.blurSize * multiplier,
+  );
+  dofPass.uniforms.blurSpread.value = Math.max(
+    0,
+    dofSettings.blurSpread * multiplier,
+  );
 }
 
 // Smoothly blend near/far blur strengths from cameraDistanceBlurSettings.
 function getCameraDistanceBlurMultiplier(focus) {
   if (!cameraDistanceBlurSettings.enabled) return 1;
 
-  const range = cameraDistanceBlurSettings.farFocusDistance - cameraDistanceBlurSettings.nearFocusDistance;
-  const rawAmount = range === 0 ? 1 : (focus - cameraDistanceBlurSettings.nearFocusDistance) / range;
+  const range =
+    cameraDistanceBlurSettings.farFocusDistance -
+    cameraDistanceBlurSettings.nearFocusDistance;
+  const rawAmount =
+    range === 0
+      ? 1
+      : (focus - cameraDistanceBlurSettings.nearFocusDistance) / range;
   const amount = THREE.MathUtils.smoothstep(rawAmount, 0, 1);
 
   return THREE.MathUtils.lerp(
     cameraDistanceBlurSettings.nearBlurMultiplier,
     cameraDistanceBlurSettings.farBlurMultiplier,
-    amount
+    amount,
   );
 }
 
@@ -1420,7 +1665,7 @@ function tweenFocusTo(point) {
 // Stop animated focus and refresh the manually positioned target controls.
 function updateTargetFromSliders() {
   TWEEN.removeAll();
-  controls.targetValue.value = 'manual target';
+  controls.targetValue.value = "manual target";
   updateTargetControls();
 }
 
@@ -1457,22 +1702,33 @@ function updateTargetControls() {
 // Refresh model rotation sliders and their degree readouts.
 function updateModelRotationControls() {
   Object.keys(modelRotationControlAxes).forEach((controlName) => {
-    controls[controlName].value = getSliderPosition(controls[controlName], modelRotationSettings[controlName]);
-    controls[`${controlName}Value`].value = modelRotationSettings[controlName].toFixed(1);
+    controls[controlName].value = getSliderPosition(
+      controls[controlName],
+      modelRotationSettings[controlName],
+    );
+    controls[`${controlName}Value`].value =
+      modelRotationSettings[controlName].toFixed(1);
   });
 }
 
 // Refresh model position sliders and their scene-unit readouts.
 function updateModelPositionControls() {
   Object.keys(modelPositionControlAxes).forEach((controlName) => {
-    controls[controlName].value = getSliderPosition(controls[controlName], modelPositionSettings[controlName]);
-    controls[`${controlName}Value`].value = modelPositionSettings[controlName].toFixed(2);
+    controls[controlName].value = getSliderPosition(
+      controls[controlName],
+      modelPositionSettings[controlName],
+    );
+    controls[`${controlName}Value`].value =
+      modelPositionSettings[controlName].toFixed(2);
   });
 }
 
 // Display the current sensor sensitivity multiplier.
 function updateSensorCalibrationControl() {
-  controls.sensorSensitivity.value = getSliderPosition(controls.sensorSensitivity, sensorZoomSettings.sensitivity);
+  controls.sensorSensitivity.value = getSliderPosition(
+    controls.sensorSensitivity,
+    sensorZoomSettings.sensitivity,
+  );
   controls.sensorSensitivityValue.value = `${sensorZoomSettings.sensitivity.toFixed(2)}x`;
 }
 
@@ -1480,7 +1736,10 @@ function updateSensorCalibrationControl() {
 function updateSensorSpeedControls() {
   sensorSpeedControls.forEach((controlName) => {
     const value = sensorZoomSettings[controlName];
-    controls[controlName].value = getSliderPosition(controls[controlName], value);
+    controls[controlName].value = getSliderPosition(
+      controls[controlName],
+      value,
+    );
     controls[`${controlName}Value`].value = `${value.toFixed(2)}x`;
   });
 }
@@ -1488,7 +1747,10 @@ function updateSensorSpeedControls() {
 // Display the stored millisecond hold delay in seconds.
 function updateSensorDelayControl() {
   const seconds = sensorZoomSettings.zoomOutHoldMs / 1000;
-  controls.zoomOutDelay.value = getSliderPosition(controls.zoomOutDelay, seconds);
+  controls.zoomOutDelay.value = getSliderPosition(
+    controls.zoomOutDelay,
+    seconds,
+  );
   controls.zoomOutDelayValue.value = `${seconds.toFixed(2)} s`;
 }
 
@@ -1498,14 +1760,20 @@ function updateCameraZoomLimits() {
   cameraControls.minDistance = sensorZoomSettings.nearCameraDistance;
   cameraControls.maxDistance = sensorZoomSettings.farCameraDistance;
   // Manual values can exceed the sliders; keep distant models inside the clipping plane.
-  camera.far = Math.max(defaultCameraFar, cameraControls.maxDistance * 1.1 + modelTargetSize);
+  camera.far = Math.max(
+    defaultCameraFar,
+    cameraControls.maxDistance * 1.1 + modelTargetSize,
+  );
   camera.updateProjectionMatrix();
   cameraControls.update();
   smoothedSensorTarget = null;
 
   Object.entries(cameraZoomControls).forEach(([controlName, settingName]) => {
     const value = sensorZoomSettings[settingName];
-    controls[controlName].value = getSliderPosition(controls[controlName], value);
+    controls[controlName].value = getSliderPosition(
+      controls[controlName],
+      value,
+    );
     controls[`${controlName}Value`].value = value.toFixed(2);
   });
   updateCameraPositionControls();
@@ -1515,7 +1783,10 @@ function updateCameraZoomLimits() {
 // Position DOF slider thumbs without truncating manually entered setting values.
 function syncDofSliders() {
   Object.keys(dofSettingDefaults).forEach((controlName) => {
-    controls[controlName].value = getSliderPosition(controls[controlName], dofSettings[controlName]);
+    controls[controlName].value = getSliderPosition(
+      controls[controlName],
+      dofSettings[controlName],
+    );
   });
 }
 
@@ -1524,10 +1795,12 @@ function openValueEditor(controlName) {
   const output = controls[`${controlName}Value`];
 
   activeManualControl = controlName;
-  controls.valueEditorLabel.textContent = output.parentElement.textContent.replace(output.textContent, '').trim();
-  controls.manualValue.removeAttribute('min');
-  controls.manualValue.removeAttribute('max');
-  controls.manualValue.step = 'any';
+  controls.valueEditorLabel.textContent = output.parentElement.textContent
+    .replace(output.textContent, "")
+    .trim();
+  controls.manualValue.removeAttribute("min");
+  controls.manualValue.removeAttribute("max");
+  controls.manualValue.step = "any";
   controls.manualValue.value = getActualControlValue(controlName);
   controls.valueEditor.hidden = false;
   controls.manualValue.focus();
@@ -1566,16 +1839,24 @@ function parseManualValue(value) {
 function getActualControlValue(controlName) {
   const targetAxis = targetControlAxes[controlName];
 
-  if (Object.hasOwn(zoomBehaviorSettings, controlName)) return zoomBehaviorSettings[controlName];
+  if (Object.hasOwn(zoomBehaviorSettings, controlName))
+    return zoomBehaviorSettings[controlName];
   if (targetAxis) return focusPoint[targetAxis];
-  if (controlName === 'sensorSensitivity') return sensorZoomSettings.sensitivity;
-  if (controlName === 'zoomOutDelay') return sensorZoomSettings.zoomOutHoldMs / 1000;
+  if (controlName === "sensorSensitivity")
+    return sensorZoomSettings.sensitivity;
+  if (controlName === "zoomOutDelay")
+    return sensorZoomSettings.zoomOutHoldMs / 1000;
   if (Object.prototype.hasOwnProperty.call(cameraZoomControls, controlName)) {
     return sensorZoomSettings[cameraZoomControls[controlName]];
   }
-  if (sensorSpeedControls.includes(controlName)) return sensorZoomSettings[controlName];
-  if (Object.prototype.hasOwnProperty.call(modelPositionControlAxes, controlName)) return modelPositionSettings[controlName];
-  if (isModelRotationControl(controlName)) return modelRotationSettings[controlName];
+  if (sensorSpeedControls.includes(controlName))
+    return sensorZoomSettings[controlName];
+  if (
+    Object.prototype.hasOwnProperty.call(modelPositionControlAxes, controlName)
+  )
+    return modelPositionSettings[controlName];
+  if (isModelRotationControl(controlName))
+    return modelRotationSettings[controlName];
 
   return dofSettings[controlName];
 }
@@ -1587,29 +1868,35 @@ function setActualControlValue(controlName, value) {
 
   if (Object.hasOwn(zoomBehaviorSettings, controlName)) {
     // Delays stay nonnegative; the short cycle floor prevents an immediate loading loop.
-    if (controlName === 'modelSwitchDelay') value = Math.max(0.1, value);
-    if (controlName === 'rotationDelay') value = Math.max(0, value);
+    if (controlName === "modelSwitchDelay") value = Math.max(0.1, value);
+    if (controlName === "rotationDelay") value = Math.max(0, value);
     zoomBehaviorSettings[controlName] = value;
-    if (controlName === 'modelSwitchDelay') resetZoomBehaviorTimers('max');
-    if (controlName === 'rotationDelay') resetZoomBehaviorTimers('min');
+    if (controlName === "modelSwitchDelay") resetZoomBehaviorTimers("max");
+    if (controlName === "rotationDelay") resetZoomBehaviorTimers("min");
     updateZoomBehaviorControls();
     return;
   }
 
   if (Object.prototype.hasOwnProperty.call(cameraZoomControls, controlName)) {
     const distance = Math.max(camera.near * 2, value);
-    if (controlName === 'cameraMinDistance') {
+    if (controlName === "cameraMinDistance") {
       sensorZoomSettings.nearCameraDistance = distance;
-      sensorZoomSettings.farCameraDistance = Math.max(sensorZoomSettings.farCameraDistance, distance);
+      sensorZoomSettings.farCameraDistance = Math.max(
+        sensorZoomSettings.farCameraDistance,
+        distance,
+      );
     } else {
       sensorZoomSettings.farCameraDistance = distance;
-      sensorZoomSettings.nearCameraDistance = Math.min(sensorZoomSettings.nearCameraDistance, distance);
+      sensorZoomSettings.nearCameraDistance = Math.min(
+        sensorZoomSettings.nearCameraDistance,
+        distance,
+      );
     }
     updateCameraZoomLimits();
     return;
   }
 
-  if (controlName === 'zoomOutDelay') {
+  if (controlName === "zoomOutDelay") {
     sensorZoomSettings.zoomOutHoldMs = value * 1000;
     updateSensorDelayControl();
     return;
@@ -1621,7 +1908,7 @@ function setActualControlValue(controlName, value) {
     return;
   }
 
-  if (controlName === 'sensorSensitivity') {
+  if (controlName === "sensorSensitivity") {
     sensorZoomSettings.sensitivity = value;
     zoomOutStartedAt = null;
     smoothedSensorTarget = null;
@@ -1629,7 +1916,9 @@ function setActualControlValue(controlName, value) {
     return;
   }
 
-  if (Object.prototype.hasOwnProperty.call(modelPositionControlAxes, controlName)) {
+  if (
+    Object.prototype.hasOwnProperty.call(modelPositionControlAxes, controlName)
+  ) {
     modelPositionSettings[controlName] = value;
     applyModelPosition();
     updateModelPositionControls();
@@ -1639,7 +1928,7 @@ function setActualControlValue(controlName, value) {
   if (targetAxis) {
     TWEEN.removeAll();
     focusPoint[targetAxis] = value;
-    controls.targetValue.value = 'manual target';
+    controls.targetValue.value = "manual target";
     updateTargetControls();
     return;
   }
@@ -1658,7 +1947,10 @@ function setActualControlValue(controlName, value) {
 
 // Identify controls belonging to the model's X/Y/Z rotation settings.
 function isModelRotationControl(controlName) {
-  return Object.prototype.hasOwnProperty.call(modelRotationControlAxes, controlName);
+  return Object.prototype.hasOwnProperty.call(
+    modelRotationControlAxes,
+    controlName,
+  );
 }
 
 // Apply the manual starting angles plus a separate, temporary animation offset.
@@ -1666,7 +1958,7 @@ function applyModelRotation() {
   modelRoot.rotation.set(
     THREE.MathUtils.degToRad(modelRotationSettings.modelRotationX),
     THREE.MathUtils.degToRad(modelRotationSettings.modelRotationY),
-    THREE.MathUtils.degToRad(modelRotationSettings.modelRotationZ)
+    THREE.MathUtils.degToRad(modelRotationSettings.modelRotationZ),
   );
   modelRoot.quaternion.multiply(zoomBehaviorState.rotationOffset);
   modelRoot.updateMatrixWorld(true);
@@ -1677,7 +1969,7 @@ function applyModelPosition() {
   const nextPosition = new THREE.Vector3(
     modelPositionSettings.modelPositionX,
     modelPositionSettings.modelPositionY,
-    modelPositionSettings.modelPositionZ
+    modelPositionSettings.modelPositionZ,
   );
   const offset = nextPosition.clone().sub(modelRoot.position);
   if (offset.lengthSq() === 0) return;
@@ -1713,9 +2005,9 @@ function updateTargetSliderRanges(box) {
   const center = box.getCenter(new THREE.Vector3());
   const size = box.getSize(new THREE.Vector3());
   const axes = [
-    ['x', controls.targetX],
-    ['y', controls.targetY],
-    ['z', controls.targetZ]
+    ["x", controls.targetX],
+    ["y", controls.targetY],
+    ["z", controls.targetZ],
   ];
 
   axes.forEach(([axis, input]) => {
@@ -1735,7 +2027,7 @@ function getTargetLabel(object, point) {
 
 // Return the selected model's readable name, or a fallback before loading completes.
 function getActiveModelLabel() {
-  return modelAssets[activeModelKey]?.label || 'model';
+  return modelAssets[activeModelKey]?.label || "model";
 }
 
 // MODEL LOADING: Cache each GLB load, center it, and scale its largest side to modelTargetSize.
@@ -1744,36 +2036,46 @@ function loadModel(key) {
   if (modelCache.has(key)) return modelCache.get(key);
 
   const asset = modelAssets[key];
-  const loading = gltfLoader.loadAsync(asset.url, (event) => {
-    if (requestedModelKey === key && activeModelKey !== key && event.total > 0) {
-      const percent = Math.round((event.loaded / event.total) * 100);
-      controls.targetValue.value = `loading ${asset.label} ${percent}%`;
-    }
-  }).then((gltf) => {
-    const bounds = new THREE.Box3().setFromObject(gltf.scene);
-    const center = bounds.getCenter(new THREE.Vector3());
-    const size = bounds.getSize(new THREE.Vector3());
-    const largestSide = Math.max(size.x, size.y, size.z);
-    if (!Number.isFinite(largestSide) || largestSide <= 0) throw new Error('Model has no usable bounds');
+  const loading = gltfLoader
+    .loadAsync(asset.url, (event) => {
+      if (
+        requestedModelKey === key &&
+        activeModelKey !== key &&
+        event.total > 0
+      ) {
+        const percent = Math.round((event.loaded / event.total) * 100);
+        controls.targetValue.value = `loading ${asset.label} ${percent}%`;
+      }
+    })
+    .then((gltf) => {
+      const bounds = new THREE.Box3().setFromObject(gltf.scene);
+      const center = bounds.getCenter(new THREE.Vector3());
+      const size = bounds.getSize(new THREE.Vector3());
+      const largestSide = Math.max(size.x, size.y, size.z);
+      if (!Number.isFinite(largestSide) || largestSide <= 0)
+        throw new Error("Model has no usable bounds");
 
-    // Normalize each asset locally; shared settings stay on modelRoot.
-    const model = new THREE.Group();
-    model.add(gltf.scene);
-    const scale = modelTargetSize / largestSide;
-    model.scale.setScalar(scale);
-    model.position.copy(center).multiplyScalar(-scale);
-    model.traverse((child) => {
-      if (!child.isMesh) return;
-      const materials = Array.isArray(child.material) ? child.material : [child.material];
-      materials.forEach((material) => {
-        if (material) material.side = THREE.DoubleSide;
+      // Normalize each asset locally; shared settings stay on modelRoot.
+      const model = new THREE.Group();
+      model.add(gltf.scene);
+      const scale = modelTargetSize / largestSide;
+      model.scale.setScalar(scale);
+      model.position.copy(center).multiplyScalar(-scale);
+      model.traverse((child) => {
+        if (!child.isMesh) return;
+        const materials = Array.isArray(child.material)
+          ? child.material
+          : [child.material];
+        materials.forEach((material) => {
+          if (material) material.side = THREE.DoubleSide;
+        });
       });
+      return model;
+    })
+    .catch((error) => {
+      modelCache.delete(key);
+      throw error;
     });
-    return model;
-  }).catch((error) => {
-    modelCache.delete(key);
-    throw error;
-  });
   modelCache.set(key, loading);
   return loading;
 }
