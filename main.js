@@ -2,6 +2,8 @@ import * as THREE from "three";
 import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
 import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
 import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
 import { Pass, FullScreenQuad } from "three/addons/postprocessing/Pass.js";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
@@ -220,6 +222,35 @@ const dofSettingDefaults = {
   blurSize: 2,
   blurSpread: 4,
 };
+// FILTER DEFAULTS: Opacity is 0..1; hue is degrees, and color adjustments are neutral at zero.
+const postProcessingDefaults = {
+  noiseStrength: 0.08,
+  noiseOpacity: 1,
+  noiseSize: 1,
+  noiseSpeed: 1,
+  vignetteStrength: 0.65,
+  vignetteRadius: 0.35,
+  vignetteSoftness: 0.6,
+  vignetteOpacity: 1,
+  bloomStrength: 0.4,
+  bloomRadius: 0.4,
+  bloomThreshold: 0.85,
+  bloomOpacity: 1,
+  colorHue: 0,
+  colorSaturation: 0,
+  colorBrightness: 0,
+  colorOpacity: 1,
+};
+const postProcessingSettings = { ...postProcessingDefaults };
+// New filters start off; saved presets can enable them for future visits.
+const postProcessingToggleDefaults = {
+  noiseEnabled: false,
+  vignetteEnabled: false,
+  bloomEnabled: false,
+  colorEnabled: false,
+};
+const postProcessingToggles = { ...postProcessingToggleDefaults };
+const optionalControlDefaults = { ...zoomBehaviorDefaults, ...postProcessingDefaults };
 // ZOOM-BASED BLUR: Adjust how much blur changes between near and far focus distances.
 const cameraDistanceBlurSettings = {
   enabled: true,
@@ -317,7 +348,18 @@ const dofDefaults = {
 
 const dofPass = new SimpleDepthOfFieldPass(camera, dofDefaults);
 composer.addPass(dofPass);
+// Keep DOF next to RenderPass so its depth texture still describes the original scene.
+const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.4, 0.4, 0.85);
+bloomPass.enabled = false;
+composer.addPass(bloomPass);
 composer.addPass(new OutputPass());
+// Color adjustments and film finishing operate on display colors, after tone mapping.
+const colorAdjustmentPass = createColorAdjustmentPass();
+const noiseVignettePass = createNoiseVignettePass();
+colorAdjustmentPass.enabled = false;
+noiseVignettePass.enabled = false;
+composer.addPass(colorAdjustmentPass);
+composer.addPass(noiseVignettePass);
 composer.setSize(window.innerWidth, window.innerHeight);
 
 const gltfLoader = new GLTFLoader();
@@ -351,8 +393,10 @@ document.querySelector("#sensorSettings").append(sensorDiagnostics);
 
 // Build the new collapsible groups here so index.html and style.css remain unchanged.
 const zoomBehaviorInputs = createZoomBehaviorControls();
+const postProcessingInputs = createPostProcessingControls();
 const controls = {
   ...zoomBehaviorInputs,
+  ...postProcessingInputs,
   panel: document.querySelector(".settings"),
   sensorZoomEnabled: document.querySelector("#sensorZoomEnabled"),
   sensorZoomState: document.querySelector("#sensorZoomState"),
@@ -435,7 +479,7 @@ const editableControls = [
   "modelRotationX",
   "modelRotationY",
   "modelRotationZ",
-  ...Object.keys(zoomBehaviorDefaults),
+  ...Object.keys(optionalControlDefaults),
 ];
 const targetControlAxes = {
   targetX: "x",
@@ -550,6 +594,17 @@ Object.keys(zoomBehaviorToggleDefaults).forEach((controlName) => {
     updateZoomBehaviorControls();
   });
 });
+Object.keys(postProcessingDefaults).forEach((controlName) => {
+  controls[controlName].addEventListener("input", () => {
+    setActualControlValue(controlName, Number(controls[controlName].value));
+  });
+});
+Object.keys(postProcessingToggleDefaults).forEach((controlName) => {
+  controls[controlName].addEventListener("change", () => {
+    postProcessingToggles[controlName] = controls[controlName].checked;
+    updatePostProcessing();
+  });
+});
 controls.connectSensor.addEventListener("click", toggleSerialConnection);
 controls.sensorZoomEnabled.addEventListener("change", updateSensorZoomMode);
 if (serialSupported) {
@@ -589,6 +644,9 @@ controls.reset.addEventListener("click", () => {
   Object.assign(modelPositionSettings, modelPositionDefaults);
   Object.assign(zoomBehaviorSettings, zoomBehaviorDefaults);
   Object.assign(zoomBehaviorToggles, zoomBehaviorToggleDefaults);
+  Object.assign(postProcessingSettings, postProcessingDefaults);
+  Object.assign(postProcessingToggles, postProcessingToggleDefaults);
+  noiseVignettePass.uniforms.noiseTime.value = 0;
   cancelAutomaticModelSwitch();
   resetZoomBehaviorTimers();
   resetAnimatedRotation();
@@ -616,6 +674,7 @@ controls.reset.addEventListener("click", () => {
   updateZoomBehaviorControls();
   updateDof();
   controls.settingsStatus.textContent = "Default controls restored";
+  updatePostProcessing();
 });
 // STARTUP: Load the published JSON before enabling input or choosing the first model.
 const startupModelKey = await loadPublishedSettings();
@@ -629,6 +688,7 @@ updateSensorDelayControl();
 updateZoomBehaviorControls();
 updateCameraZoomLimits();
 updateDof();
+updatePostProcessing();
 updateSensorZoomMode();
 updateCameraPositionControls();
 cameraControls.enabled = true;
@@ -664,6 +724,7 @@ function collectSettingsPreset() {
     model: activeModelKey || requestedModelKey,
     dofEnabled: controls.enabled.checked,
     zoomBehaviors: { ...zoomBehaviorToggles },
+    postProcessing: { ...postProcessingToggles },
     controls: Object.fromEntries(
       editableControls.map((name) => [name, getActualControlValue(name)]),
     ),
@@ -717,19 +778,27 @@ function validateSettingsPreset(preset) {
     throw new Error("Unsupported settings format or model");
   }
   for (const name of editableControls) {
-    // Older published files do not contain zoom-event controls; use their code defaults.
+    // Older presets omit newer controls; use defaults without rewriting the existing JSON.
     if (
-      Object.hasOwn(zoomBehaviorDefaults, name) &&
+      Object.hasOwn(optionalControlDefaults, name) &&
       preset.controls?.[name] === undefined
     )
       continue;
     if (!Number.isFinite(preset.controls?.[name]))
       throw new Error(`Invalid setting: ${name}`);
+    if (Object.hasOwn(postProcessingDefaults, name) && !Number.isFinite(Math.fround(preset.controls[name]))) {
+      throw new Error(`Filter setting exceeds GPU numeric range: ${name}`);
+    }
   }
   if (preset.zoomBehaviors !== undefined) {
     for (const name of Object.keys(zoomBehaviorToggleDefaults)) {
       if (typeof preset.zoomBehaviors?.[name] !== "boolean")
         throw new Error(`Invalid toggle: ${name}`);
+    }
+  }
+  if (preset.postProcessing !== undefined) {
+    for (const name of Object.keys(postProcessingToggleDefaults)) {
+      if (typeof preset.postProcessing?.[name] !== "boolean") throw new Error(`Invalid toggle: ${name}`);
     }
   }
   for (const vector of ["position", "target"]) {
@@ -770,12 +839,16 @@ function applySettingsPreset(preset) {
     zoomBehaviorToggles,
     preset.zoomBehaviors ?? zoomBehaviorToggleDefaults,
   );
+  for (const name of Object.keys(postProcessingToggleDefaults)) {
+    postProcessingToggles[name] = preset.postProcessing?.[name] ?? postProcessingToggleDefaults[name];
+  }
+  noiseVignettePass.uniforms.noiseTime.value = 0;
   controls.enabled.checked = preset.dofEnabled;
   for (const name of editableControls) {
     if (!Object.hasOwn(targetControlAxes, name)) {
       setActualControlValue(
         name,
-        preset.controls[name] ?? zoomBehaviorDefaults[name],
+        preset.controls[name] ?? optionalControlDefaults[name],
       );
     }
   }
@@ -791,6 +864,7 @@ function applySettingsPreset(preset) {
   updateFocusUniform();
   updateDof();
   updateZoomBehaviorControls();
+  updatePostProcessing();
 }
 
 // PUBLISHED PRESET: Read beside main.js (also works under a GitHub Pages repository path).
@@ -835,7 +909,215 @@ function animate() {
   updateZoomBehaviors(elapsedSeconds, deltaSeconds);
   updateCameraPositionControls();
   updateFocusUniform();
-  composer.render();
+  // Advance grain only while visible; bounded time remains stable during long gallery runs.
+  if (noiseVignettePass.enabled && noiseVignettePass.uniforms.noiseAmount.value > 0 && !document.hidden) {
+    const time = noiseVignettePass.uniforms.noiseTime;
+    time.value = (time.value + deltaSeconds * postProcessingSettings.noiseSpeed) % 4096;
+  }
+  composer.render(deltaSeconds);
+}
+
+// FILTER SHADERS: A shared full-screen setup, with no extra depth or tone-mapping work.
+function createFilterPass(name, uniforms, fragmentShader) {
+  const pass = new ShaderPass({
+    name,
+    uniforms: { tDiffuse: { value: null }, ...uniforms },
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = vec4(position.xy, 0.0, 1.0);
+      }
+    `,
+    fragmentShader,
+  });
+  pass.material.depthTest = false;
+  pass.material.depthWrite = false;
+  pass.material.toneMapped = false;
+  return pass;
+}
+
+// Combine grain and vignette in one draw; zero-amount branches omit each effect's calculations.
+function createNoiseVignettePass() {
+  return createFilterPass("NoiseVignette", {
+    noiseAmount: { value: 0 },
+    noiseSize: { value: 1 },
+    noiseTime: { value: 0 },
+    vignetteAmount: { value: 0 },
+    vignetteRadius: { value: 0.35 },
+    vignetteSoftness: { value: 0.6 },
+  }, `
+    uniform sampler2D tDiffuse;
+    uniform float noiseAmount;
+    uniform float noiseSize;
+    uniform float noiseTime;
+    uniform float vignetteAmount;
+    uniform float vignetteRadius;
+    uniform float vignetteSoftness;
+    varying vec2 vUv;
+
+    void main() {
+      vec4 texel = texture2D(tDiffuse, vUv);
+      vec3 color = texel.rgb;
+      if (noiseAmount > 0.0) {
+        vec2 cell = floor(gl_FragCoord.xy / noiseSize);
+        float frame = floor(noiseTime * 24.0);
+        float grain = fract(sin(dot(cell, vec2(12.9898, 78.233)) + frame * 37.719) * 43758.5453);
+        color += (grain - 0.5) * noiseAmount;
+      }
+      if (vignetteAmount > 0.0) {
+        float distanceFromCenter = length((vUv - 0.5) * 1.41421356);
+        float edge = smoothstep(vignetteRadius, vignetteRadius + vignetteSoftness, distanceFromCenter);
+        color *= 1.0 - edge * vignetteAmount;
+      }
+      gl_FragColor = vec4(clamp(color, 0.0, 1.0), texel.a);
+    }
+  `);
+}
+
+// Hue rotation follows Three.js HueSaturationShader (MIT; see library/THREE-LICENSE.txt).
+// Saturation uses a continuous gray-to-color blend; brightness is an additive display-color offset.
+function createColorAdjustmentPass() {
+  return createFilterPass("ColorAdjustment", {
+    hue: { value: 0 },
+    saturation: { value: 0 },
+    brightness: { value: 0 },
+    opacity: { value: 1 },
+  }, `
+    uniform sampler2D tDiffuse;
+    uniform float hue;
+    uniform float saturation;
+    uniform float brightness;
+    uniform float opacity;
+    varying vec2 vUv;
+
+    void main() {
+      vec4 texel = texture2D(tDiffuse, vUv);
+      float s = sin(hue), c = cos(hue);
+      vec3 weights = (vec3(2.0 * c, -sqrt(3.0) * s - c, sqrt(3.0) * s - c) + 1.0) / 3.0;
+      vec3 color = vec3(dot(texel.rgb, weights.xyz), dot(texel.rgb, weights.zxy), dot(texel.rgb, weights.yzx));
+      float average = (color.r + color.g + color.b) / 3.0;
+      color = mix(vec3(average), color, 1.0 + saturation);
+      color = clamp(color + brightness, 0.0, 1.0);
+      gl_FragColor = vec4(mix(texel.rgb, color, opacity), texel.a);
+    }
+  `);
+}
+
+// FILTER UI: Keep the four collapsible sections in main.js and reuse existing manual number entry.
+function createPostProcessingControls() {
+  const sliders = {
+    noiseStrength: ["strength", 0, 1, 0.01],
+    noiseOpacity: ["opacity", 0, 1, 0.01],
+    noiseSize: ["grain size", 1, 8, 0.25],
+    noiseSpeed: ["animation speed", 0, 3, 0.05],
+    vignetteStrength: ["strength", 0, 1, 0.01],
+    vignetteRadius: ["radius", 0, 1, 0.01],
+    vignetteSoftness: ["softness", 0.01, 1, 0.01],
+    vignetteOpacity: ["opacity", 0, 1, 0.01],
+    bloomStrength: ["strength", 0, 3, 0.05],
+    bloomRadius: ["radius", 0, 1, 0.01],
+    bloomThreshold: ["threshold", 0, 2, 0.01],
+    bloomOpacity: ["opacity", 0, 1, 0.01],
+    colorHue: ["hue", -180, 180, 1],
+    colorSaturation: ["saturation", -1, 1, 0.01],
+    colorBrightness: ["brightness", -1, 1, 0.01],
+    colorOpacity: ["opacity", 0, 1, 0.01],
+  };
+  const groups = [
+    ["Noise", "noiseEnabled", ["noiseStrength", "noiseOpacity", "noiseSize", "noiseSpeed"]],
+    ["Vignette", "vignetteEnabled", ["vignetteStrength", "vignetteRadius", "vignetteSoftness", "vignetteOpacity"]],
+    ["Bloom", "bloomEnabled", ["bloomStrength", "bloomRadius", "bloomThreshold", "bloomOpacity"]],
+    ["Color", "colorEnabled", ["colorHue", "colorSaturation", "colorBrightness", "colorOpacity"]],
+  ];
+  let previousGroup = document.querySelector("#blurSpread").closest("details");
+  const inputs = {};
+  for (const [title, toggle, names] of groups) {
+    const group = document.createElement("details");
+    group.className = "settings-group";
+    group.innerHTML = `
+      <summary>${title}</summary>
+      <div class="sensor-mode">
+        <span>enabled</span>
+        <label class="toggle">
+          <input id="${toggle}" type="checkbox" role="switch" aria-label="Enable ${title}">
+          <span id="${toggle}State">Off</span>
+        </label>
+      </div>
+      ${names.map((name) => {
+        const [label, min, max, step] = sliders[name];
+        return `
+          <label class="control" for="${name}">
+            <span>${label}
+              <output id="${name}Value" class="editable-value" for="${name}" data-control="${name}" tabindex="0" aria-label="Set ${title} ${label} manually"></output>
+            </span>
+            <input id="${name}" type="range" min="${min}" max="${max}" step="${step}" value="${postProcessingDefaults[name]}">
+          </label>`;
+      }).join("")}`;
+    previousGroup.after(group);
+    previousGroup = group;
+    for (const id of [toggle, `${toggle}State`, ...names.flatMap((name) => [name, `${name}Value`])]) {
+      inputs[id] = document.querySelector(`#${id}`);
+    }
+  }
+  return inputs;
+}
+
+// Keep opacity/radii bounded; manual hue, bloom strength, grain size, and speed can exceed sliders.
+function normalizePostProcessingValue(name, value) {
+  if (!Number.isFinite(value) || !Number.isFinite(Math.fround(value))) return null;
+  if (name.endsWith("Opacity") || ["noiseStrength", "vignetteStrength", "vignetteRadius", "bloomRadius"].includes(name)) {
+    return THREE.MathUtils.clamp(value, 0, 1);
+  }
+  if (name === "colorSaturation" || name === "colorBrightness") return THREE.MathUtils.clamp(value, -1, 1);
+  if (name === "colorHue") return value;
+  if (name === "noiseSize") return Math.max(0.25, value);
+  if (name === "vignetteSoftness") return THREE.MathUtils.clamp(value, 0.001, 1);
+  return Math.max(0, value);
+}
+
+// Apply uniforms and skip whole passes when disabled, transparent, or mathematically neutral.
+function updatePostProcessing() {
+  const settings = postProcessingSettings;
+  const toggles = postProcessingToggles;
+  const film = noiseVignettePass.uniforms;
+  film.noiseAmount.value = toggles.noiseEnabled ? settings.noiseStrength * settings.noiseOpacity : 0;
+  film.noiseSize.value = settings.noiseSize;
+  film.vignetteAmount.value = toggles.vignetteEnabled ? settings.vignetteStrength * settings.vignetteOpacity : 0;
+  film.vignetteRadius.value = settings.vignetteRadius;
+  film.vignetteSoftness.value = settings.vignetteSoftness;
+  noiseVignettePass.enabled = film.noiseAmount.value > 0 || film.vignetteAmount.value > 0;
+
+  bloomPass.strength = settings.bloomStrength * settings.bloomOpacity;
+  bloomPass.radius = settings.bloomRadius;
+  bloomPass.threshold = settings.bloomThreshold;
+  bloomPass.enabled = toggles.bloomEnabled && bloomPass.strength > 0;
+  // Bloom needs unclipped highlights. Restore the original buffer format when bloom is off.
+  const textureType = bloomPass.enabled ? THREE.HalfFloatType : THREE.UnsignedByteType;
+  for (const target of [composer.renderTarget1, composer.renderTarget2]) {
+    if (target.texture.type !== textureType) {
+      target.texture.type = textureType;
+      target.dispose();
+    }
+  }
+
+  const color = colorAdjustmentPass.uniforms;
+  color.hue.value = THREE.MathUtils.degToRad(settings.colorHue % 360);
+  color.saturation.value = settings.colorSaturation;
+  color.brightness.value = settings.colorBrightness;
+  color.opacity.value = settings.colorOpacity;
+  colorAdjustmentPass.enabled = toggles.colorEnabled && settings.colorOpacity > 0
+    && (color.hue.value !== 0 || settings.colorSaturation !== 0 || settings.colorBrightness !== 0);
+
+  for (const [name, value] of Object.entries(settings)) {
+    const unit = name === "colorHue" ? " deg" : name === "noiseSize" ? " px" : name === "noiseSpeed" ? "x" : "";
+    controls[name].value = getSliderPosition(controls[name], value);
+    controls[`${name}Value`].value = `${formatCompactValue(value)}${unit}`;
+  }
+  for (const [name, enabled] of Object.entries(toggles)) {
+    controls[name].checked = enabled;
+    controls[`${name}State`].textContent = enabled ? "On" : "Off";
+  }
 }
 
 // SETTINGS UI: Reuse the existing slider, manual-entry, toggle, and collapsible styles.
@@ -1839,6 +2121,7 @@ function parseManualValue(value) {
 function getActualControlValue(controlName) {
   const targetAxis = targetControlAxes[controlName];
 
+  if (Object.hasOwn(postProcessingSettings, controlName)) return postProcessingSettings[controlName];
   if (Object.hasOwn(zoomBehaviorSettings, controlName))
     return zoomBehaviorSettings[controlName];
   if (targetAxis) return focusPoint[targetAxis];
@@ -1865,6 +2148,14 @@ function getActualControlValue(controlName) {
 // Camera limits stay positive and ordered; other manual values can exceed slider ranges.
 function setActualControlValue(controlName, value) {
   const targetAxis = targetControlAxes[controlName];
+
+  if (Object.hasOwn(postProcessingSettings, controlName)) {
+    const normalized = normalizePostProcessingValue(controlName, value);
+    if (normalized === null) return;
+    postProcessingSettings[controlName] = normalized;
+    updatePostProcessing();
+    return;
+  }
 
   if (Object.hasOwn(zoomBehaviorSettings, controlName)) {
     // Delays stay nonnegative; the short cycle floor prevents an immediate loading loop.
