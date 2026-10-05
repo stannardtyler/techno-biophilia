@@ -151,10 +151,11 @@ cameraControls.update();
 
 const modelRoot = new THREE.Group();
 // MODEL QUEUE: Add a key/file entry here for both keyboard selection and automatic cycling.
+// Numeric keys set the cycling order; settings.json's model value selects the starting model.
 const modelAssets = {
-  1: { url: "./treeScan.glb", label: "tree scan" },
-  2: { url: "./treeHole.glb", label: "tree hole" },
-  3: { url: "./anotherTreeScan.glb", label: "another tree scan" },
+  1: { url: "./treeHole3D_lowPoly.glb", label: "tree hole" },
+  2: { url: "./treeScan_lowPoly.glb", label: "tree scan" },
+  3: { url: "./anotherTreeScan_lowPoly.glb", label: "another tree scan" },
   4: { url: "./percaderoRock.glb", label: "percadero rock" },
 };
 const modelCache = new Map();
@@ -196,6 +197,7 @@ const zoomBehaviorDefaults = {
 const zoomBehaviorSettings = { ...zoomBehaviorDefaults };
 const zoomBehaviorToggleDefaults = {
   modelCycleEnabled: true,
+  modelCycleAlways: false, // Ignore zoom distance when enabled; Reset keeps the original max-only mode.
   proximityRotationEnabled: true,
 };
 const zoomBehaviorToggles = { ...zoomBehaviorToggleDefaults };
@@ -581,15 +583,11 @@ Object.keys(zoomBehaviorDefaults).forEach((controlName) => {
 Object.keys(zoomBehaviorToggleDefaults).forEach((controlName) => {
   controls[controlName].addEventListener("change", () => {
     zoomBehaviorToggles[controlName] = controls[controlName].checked;
-    resetZoomBehaviorTimers(
-      controlName === "modelCycleEnabled" ? "max" : "min",
-    );
-    if (
-      controlName === "modelCycleEnabled" &&
-      !zoomBehaviorToggles.modelCycleEnabled
-    ) {
-      cancelAutomaticModelSwitch();
-    }
+    const cycleToggle =
+      controlName === "modelCycleEnabled" || controlName === "modelCycleAlways";
+    resetZoomBehaviorTimers(cycleToggle ? "max" : "min");
+    // A mode change starts a fresh countdown and cancels any pending automatic swap.
+    if (cycleToggle) cancelAutomaticModelSwitch();
     if (!zoomBehaviorToggles.proximityRotationEnabled) beginRotationReturn();
     updateZoomBehaviorControls();
   });
@@ -792,6 +790,9 @@ function validateSettingsPreset(preset) {
   }
   if (preset.zoomBehaviors !== undefined) {
     for (const name of Object.keys(zoomBehaviorToggleDefaults)) {
+      // Presets exported before the always-cycle option keep the original max-only mode.
+      if (name === "modelCycleAlways" && preset.zoomBehaviors?.[name] === undefined)
+        continue;
       if (typeof preset.zoomBehaviors?.[name] !== "boolean")
         throw new Error(`Invalid toggle: ${name}`);
     }
@@ -835,10 +836,9 @@ function applySettingsPreset(preset) {
   cancelAutomaticModelSwitch();
   resetZoomBehaviorTimers();
   resetAnimatedRotation();
-  Object.assign(
-    zoomBehaviorToggles,
-    preset.zoomBehaviors ?? zoomBehaviorToggleDefaults,
-  );
+  for (const name of Object.keys(zoomBehaviorToggleDefaults)) {
+    zoomBehaviorToggles[name] = preset.zoomBehaviors?.[name] ?? zoomBehaviorToggleDefaults[name];
+  }
   for (const name of Object.keys(postProcessingToggleDefaults)) {
     postProcessingToggles[name] = preset.postProcessing?.[name] ?? postProcessingToggleDefaults[name];
   }
@@ -1134,7 +1134,7 @@ function createZoomBehaviorControls() {
     [
       "Model Cycle",
       "modelCycleEnabled",
-      "at max distance",
+      "cycle models",
       "modelCycleStatus",
       ["modelSwitchDelay"],
     ],
@@ -1157,6 +1157,7 @@ function createZoomBehaviorControls() {
     .closest("details");
   const inputs = {};
   for (const [title, toggle, label, status, names] of groups) {
+    const isModelCycle = toggle === "modelCycleEnabled";
     const group = document.createElement("details");
     group.className = "settings-group";
     group.open = true;
@@ -1169,6 +1170,14 @@ function createZoomBehaviorControls() {
           <span id="${toggle}State">On</span>
         </label>
       </div>
+      ${isModelCycle ? `
+      <div class="sensor-mode">
+        <span>always cycle</span>
+        <label class="toggle">
+          <input id="modelCycleAlways" type="checkbox" role="switch" aria-label="Cycle models at any zoom distance">
+          <span id="modelCycleAlwaysState">Off</span>
+        </label>
+      </div>` : ""}
       ${names
         .map((name) => {
           const [text, min, max, step] = sliders[name];
@@ -1189,6 +1198,7 @@ function createZoomBehaviorControls() {
     for (const id of [
       toggle,
       `${toggle}State`,
+      ...(isModelCycle ? ["modelCycleAlways", "modelCycleAlwaysState"] : []),
       status,
       ...names.flatMap((name) => [name, `${name}Value`]),
     ]) {
@@ -1224,7 +1234,7 @@ function updateZoomBehaviorReadouts() {
   if (!zoomBehaviorToggles.modelCycleEnabled) cycle = "Off";
   else if (modelLoading) cycle = "Loading model";
   else if (Object.keys(modelAssets).length < 2) cycle = "Single model";
-  else if (state.atMax)
+  else if (zoomBehaviorToggles.modelCycleAlways || state.atMax)
     cycle = `${Math.max(0, zoomBehaviorSettings.modelSwitchDelay - state.maxElapsed).toFixed(1)} s`;
   if (state.rotationPhase === "returning") rotation = "Returning to start";
   else if (!zoomBehaviorToggles.proximityRotationEnabled) rotation = "Off";
@@ -1238,7 +1248,7 @@ function updateZoomBehaviorReadouts() {
     controls.proximityRotationStatus.value = rotation;
 }
 
-// Restart one or both arrival countdowns without interrupting an already-active rotation.
+// Restart the cycle and/or proximity countdown without interrupting an already-active rotation.
 function resetZoomBehaviorTimers(boundary = "both") {
   if (boundary !== "min") {
     zoomBehaviorState.atMax = false;
@@ -1310,10 +1320,11 @@ function updateZoomBehaviors(elapsedSeconds, deltaSeconds) {
 
   if (
     zoomBehaviorToggles.modelCycleEnabled &&
-    state.atMax &&
+    (zoomBehaviorToggles.modelCycleAlways || state.atMax) &&
     Object.keys(modelAssets).length > 1
   ) {
-    state.maxElapsed += wasAtMax ? elapsedSeconds : 0;
+    // Always-cycle time survives camera movement; max-only time starts on arrival.
+    state.maxElapsed += zoomBehaviorToggles.modelCycleAlways || wasAtMax ? elapsedSeconds : 0;
     if (state.maxElapsed >= zoomBehaviorSettings.modelSwitchDelay) {
       advanceModelQueue();
       updateZoomBehaviorReadouts();
